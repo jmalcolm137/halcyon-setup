@@ -6,6 +6,10 @@ Copy this directory to the Halcyon cports checkout:
 cp -a packaging/halcyon-core/halcyon-setup ../cports/halcyon-core/
 ```
 
+The Halcyon cports branch layers `halcyon-core` on `halcyon-extra`
+(`halcyon-core/.parent -> ../halcyon-extra`) so core packages can use
+`serenity-lagom-devel` from the SDE repository. Keep that link in place.
+
 Before building, replace `_commit` with the released commit and update
 `sha256` with the digest of the GitHub archive:
 
