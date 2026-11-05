@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Halcyon Linux Setup
+GenericName=System Installer
+Comment=Install Halcyon Linux on this computer
+Exec=halcyon-setup
+Icon=halcyon-setup
+Terminal=false
+Categories=System;
+Keywords=install;setup;halcyon;linux;wizard;
+StartupNotify=true

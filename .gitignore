@@ -1,0 +1,6 @@
+build/
+*.o
+*.d
+*.core
+core
+__pycache__/

@@ -1,0 +1,42 @@
+#!/bin/sh
+# Launch the privileged Halcyon Setup UI. The SDE session runs as an
+# unprivileged live user, so authenticate with pkexec and preserve the
+# Wayland session variables the toolkit needs.
+set -eu
+
+REAL=${HALCYON_SETUP_REAL:-/usr/lib/sde/bin/halcyon-setup.real}
+
+if [ "$(id -u)" = 0 ]; then
+    export SERENITY_RES_ROOT="${SERENITY_RES_ROOT:-/usr/lib/sde/share/res}"
+    export HALCYON_SETUP_MAP="${HALCYON_SETUP_MAP:-/usr/share/halcyon-setup/world-map.png}"
+    export HALCYON_SETUP_ICON="${HALCYON_SETUP_ICON:-/usr/share/icons/hicolor/32x32/apps/halcyon-setup.png}"
+    if [ -d /usr/lib/sde/lib ]; then
+        export LD_LIBRARY_PATH="/usr/lib/sde/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    fi
+    exec "$REAL" "$@"
+fi
+
+PKEXEC=$(command -v pkexec 2>/dev/null || true)
+ENV_BIN=$(command -v env 2>/dev/null || echo /usr/bin/env)
+if [ -z "$PKEXEC" ]; then
+    echo "halcyon-setup: pkexec is required to authenticate; run it as root instead." >&2
+    exit 1
+fi
+
+RES_ROOT=${SERENITY_RES_ROOT:-/usr/lib/sde/share/res}
+MAP=${HALCYON_SETUP_MAP:-/usr/share/halcyon-setup/world-map.png}
+ICON=${HALCYON_SETUP_ICON:-/usr/share/icons/hicolor/32x32/apps/halcyon-setup.png}
+LIB_PATH=
+if [ -d /usr/lib/sde/lib ]; then
+    LIB_PATH=/usr/lib/sde/lib
+fi
+
+exec "$PKEXEC" "$ENV_BIN" \
+    WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+    XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+    XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}" \
+    SERENITY_RES_ROOT="$RES_ROOT" \
+    HALCYON_SETUP_MAP="$MAP" \
+    HALCYON_SETUP_ICON="$ICON" \
+    LD_LIBRARY_PATH="$LIB_PATH" \
+    "$REAL" "$@"

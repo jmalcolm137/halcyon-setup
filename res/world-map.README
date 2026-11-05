@@ -1,0 +1,7 @@
+world-map.png is an equirectangular rendering of Natural Earth 1:110m land
+data (ne_110m_land.geojson). Natural Earth data is in the public domain:
+
+  https://www.naturalearthdata.com/about/terms-of-use/
+
+The PNG was rendered for Halcyon Setup with a light blue ocean, muted land
+colours and 30-degree graticule lines.
