@@ -51,7 +51,7 @@ match self.profile.arch:
     case "ppc" | "ppc64" | "ppc64le":
         depends += ["grub-powerpc-ieee1275"]
 
-options = ["!check", "!cross"]
+options = ["!check", "!cross", "etcfiles"]
 
 source = f"{url}/archive/{_commit}.tar.gz"
 sha256 = ["0000000000000000000000000000000000000000000000000000000000000000"]
