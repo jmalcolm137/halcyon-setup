@@ -1,0 +1,283 @@
+diff --git a/res/halcyon-setup b/res/halcyon-setup
+index c5cd24c..f96e1a5 100755
+--- a/res/halcyon-setup
++++ b/res/halcyon-setup
+@@ -4,6 +4,11 @@
+ # Wayland session variables the toolkit needs.
+ set -eu
+ 
++# The SDE session PATH usually omits /usr/sbin. The installer formats disks
++# and bootstraps the target, so give every child a complete system PATH.
++PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++export PATH
++
+ REAL=${HALCYON_SETUP_REAL:-/usr/lib/sde/bin/halcyon-setup.real}
+ 
+ # The SDE compositor names its Wayland socket "sde". The display manager can
+@@ -61,6 +66,7 @@ if [ -d /usr/lib/sde/lib ]; then
+ fi
+ 
+ exec "$PKEXEC" "$ENV_BIN" \
++    PATH="$PATH" \
+     WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+     XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+     XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}" \
+diff --git a/src/Installer/Command.cpp b/src/Installer/Command.cpp
+index 88b6aea..f9a9dd5 100644
+--- a/src/Installer/Command.cpp
++++ b/src/Installer/Command.cpp
+@@ -39,15 +39,23 @@ ByteString resolve_command(StringView program)
+     }
+ 
+     auto const* path = getenv("PATH");
+-    if (!path)
+-        return {};
+-
+-    auto directories = ByteString { path }.split(':');
++    // Keep the ByteString alive: split() returns views into it.
++    auto path_string = path && *path ? ByteString { path } : ByteString {};
++    auto directories = path_string.split(':');
+     for (auto const& directory : directories) {
+         auto candidate = ByteString::formatted("{}/{}", directory.is_empty() ? "."sv : directory.view(), program);
+         if (access(candidate.characters(), X_OK) == 0)
+             return candidate;
+     }
++
++    // pkexec and some desktop launchers hand the installer a shortened PATH.
++    // Fall back to the standard system directories before giving up.
++    auto fallback_path = ByteString { "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"sv };
++    for (auto const& directory : fallback_path.split(':')) {
++        auto candidate = ByteString::formatted("{}/{}", directory, program);
++        if (access(candidate.characters(), X_OK) == 0)
++            return candidate;
++    }
+     return {};
+ }
+ 
+diff --git a/src/Installer/Config.h b/src/Installer/Config.h
+index ad0a340..ed68fc3 100644
+--- a/src/Installer/Config.h
++++ b/src/Installer/Config.h
+@@ -53,6 +53,7 @@ struct InstallConfig {
+ 
+     Bootloader bootloader { Bootloader::Limine };
+ 
++    bool install_desktop { true };
+     bool remove_base_live { true };
+     bool update_system { true };
+     bool enable_syslog { true };
+diff --git a/src/Installer/Installer.cpp b/src/Installer/Installer.cpp
+index 9fef186..e33e608 100644
+--- a/src/Installer/Installer.cpp
++++ b/src/Installer/Installer.cpp
+@@ -350,6 +350,16 @@ public:
+         if (m_failed)
+             return finish();
+ 
++        if (!install_required_packages())
++            return finish();
++        if (m_failed)
++            return finish();
++
++        if (!configure_desktop())
++            return finish();
++        if (m_failed)
++            return finish();
++
+         if (!configure_system())
+             return finish();
+         if (m_failed)
+@@ -445,6 +455,16 @@ private:
+                 return false;
+             }
+         }
++        if (!command_exists("mkfs.fat"sv) && !command_exists("mkfs.vfat"sv)) {
++            m_failed = true;
++            m_error = "Required program 'mkfs.fat' (dosfstools) was not found."sv;
++            return false;
++        }
++        if (!command_exists("bcachefs"sv) && !command_exists("mkfs.bcachefs"sv)) {
++            m_failed = true;
++            m_error = "Formatting bcachefs requires bcachefs-tools, but it was not found."sv;
++            return false;
++        }
+ 
+         auto probe = probe_devices();
+         DiskInfo const* disk = nullptr;
+@@ -597,7 +617,9 @@ private:
+         auto program = ByteString {};
+ 
+         if (filesystem_is_fat(fs_type)) {
+-            program = "mkfs.vfat"sv;
++            // dosfstools provides mkfs.fat; some images only expose the
++            // mkfs.vfat compatibility name. Prefer the real binary.
++            program = command_exists("mkfs.fat"sv) ? "mkfs.fat"sv : "mkfs.vfat"sv;
+             arguments.append("-F"sv);
+             arguments.append(fs_type == "fat16"sv ? "16"sv : "32"sv);
+             if (!label.is_empty()) {
+@@ -787,6 +809,31 @@ private:
+         return true;
+     }
+ 
++    bool install_required_packages()
++    {
++        advance(55, "Installing required system tools"sv);
++        return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
++                       "uutils-coreutils"sv, "bcachefs-tools"sv, "ckms"sv, "linux-stable-bcachefs-bin"sv },
++            "Installing uutils, bcachefs tools, ckms and the bcachefs kernel module"sv, {}, 600);
++    }
++
++    bool configure_desktop()
++    {
++        advance(56, "Configuring the desktop environment"sv);
++        if (m_config.install_desktop) {
++            return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
++                           "serenity-desktop"sv, "sddm"sv, "sddm-default-cage"sv, "sddm-theme-none"sv },
++                "Installing the Serenity Desktop Environment"sv, {}, 900);
++        }
++
++        // Keep the required tools above, but leave a console-only system.
++        run({ "chimera-chroot"sv, m_target, "apk"sv, "del"sv,
++                "serenity-desktop"sv, "serenity-lagom"sv, "sddm"sv, "sddm-default-cage"sv,
++                "sddm-theme-none"sv, "ladybird-sde"sv },
++            "Removing the Serenity Desktop Environment"sv, {}, 600, true);
++        return true;
++    }
++
+     ByteString target_path(StringView path) const
+     {
+         if (path == "/"sv)
+diff --git a/src/UI/MainWindow.cpp b/src/UI/MainWindow.cpp
+index 4a32760..f299636 100644
+--- a/src/UI/MainWindow.cpp
++++ b/src/UI/MainWindow.cpp
+@@ -202,7 +202,7 @@ ErrorOr<void> MainWindow::build_ui()
+ 
+     m_sidebar = body.add<WizardSidebar>();
+     Vector<ByteString> steps;
+-    for (auto const* step : { "Welcome", "Disk", "Mount points", "Bootloader", "System", "Time zone", "Accounts", "Options", "Summary", "Install" })
++    for (auto const* step : { "Welcome", "Disk", "Mount points", "Bootloader", "System", "Time zone", "Accounts", "Desktop", "Options", "Summary", "Install" })
+         steps.append(ByteString { step });
+     m_sidebar->set_steps(move(steps));
+ 
+@@ -319,6 +319,7 @@ void MainWindow::build_pages()
+     build_system_page();
+     build_timezone_page();
+     build_accounts_page();
++    build_desktop_page();
+     build_options_page();
+     build_summary_page();
+     build_progress_page();
+@@ -724,6 +725,39 @@ void MainWindow::build_accounts_page()
+     page.add_spacer();
+ }
+ 
++void MainWindow::build_desktop_page()
++{
++    auto& page = m_stack->add<GUI::Widget>();
++    page.set_layout<GUI::VerticalBoxLayout>(GUI::Margins { 18, 14 }, 9);
++    m_pages.append(&page);
++
++    auto& title = page.add<GUI::Label>("Desktop environment"_string);
++    title.set_font_size(18);
++    title.set_font_weight(700);
++    title.set_text_alignment(Gfx::TextAlignment::CenterLeft);
++    title.set_fixed_height(28);
++
++    auto& intro = page.add<GUI::Label>(
++        "Choose whether the installed system should start the Serenity Desktop Environment. The base "
++        "system, the GNU userland, bcachefs tools and the kernel modules are installed either way."_string);
++    intro.set_text_wrapping(Gfx::TextWrapping::Wrap);
++    intro.set_text_alignment(Gfx::TextAlignment::CenterLeft);
++    intro.set_fixed_height(58);
++
++    m_install_desktop_checkbox = page.add<GUI::CheckBox>("Install the Serenity Desktop Environment (SDE)"_string);
++    m_install_desktop_checkbox->set_checked(true);
++
++    auto& note = page.add<GUI::Label>(
++        "Clearing this option removes the SDE session, display manager and SDE browser from the target. "
++        "The system will boot to a text console; you can install a desktop later with apk."_string);
++    note.set_text_wrapping(Gfx::TextWrapping::Wrap);
++    note.set_text_alignment(Gfx::TextAlignment::CenterLeft);
++    note.set_foreground_role(Gfx::ColorRole::DisabledText);
++    note.set_fixed_height(52);
++
++    page.add_spacer();
++}
++
+ void MainWindow::build_options_page()
+ {
+     auto& page = m_stack->add<GUI::Widget>();
+@@ -1117,6 +1151,7 @@ void MainWindow::update_summary()
+     builder.appendff("Keyboard: {}\n", keyboard_description(config.keyboard_layout));
+     builder.appendff("Hardware clock: {}\n", config.hardware_clock_localtime ? "local time"sv : "UTC"sv);
+     builder.appendff("Bootloader: {}\n", bootloader_name(config.bootloader));
++    builder.appendff("Desktop environment: {}\n", config.install_desktop ? "Serenity Desktop Environment"sv : "none"sv);
+     builder.appendff("Root password: (set)\n");
+     if (config.users.is_empty()) {
+         builder.append("Users: (none - root only)\n"sv);
+@@ -1170,6 +1205,7 @@ InstallConfig MainWindow::build_config() const
+     config.hardware_clock_localtime = m_rtc_localtime_radio && m_rtc_localtime_radio->is_checked();
+     config.bootloader = (m_grub_radio && m_grub_radio->is_checked()) ? Bootloader::Grub : Bootloader::Limine;
+ 
++    config.install_desktop = !m_install_desktop_checkbox || m_install_desktop_checkbox->is_checked();
+     config.remove_base_live = !m_remove_base_live_checkbox || m_remove_base_live_checkbox->is_checked();
+     config.update_system = !m_update_system_checkbox || m_update_system_checkbox->is_checked();
+     config.enable_syslog = !m_enable_syslog_checkbox || m_enable_syslog_checkbox->is_checked();
+@@ -1257,6 +1293,9 @@ bool MainWindow::validate_current_page()
+         return true;
+     }
+ 
++    case Step::Desktop:
++        return true;
++
+     case Step::Options:
+         return true;
+ 
+@@ -1328,6 +1367,9 @@ void MainWindow::set_page(Step step)
+     case Step::Accounts:
+         hint = "Set the root password and create user accounts."sv;
+         break;
++    case Step::Desktop:
++        hint = "Choose whether to install the Serenity Desktop Environment."sv;
++        break;
+     case Step::Options:
+         hint = "Choose post-installation services and tasks."sv;
+         break;
+@@ -1660,6 +1702,8 @@ void MainWindow::show_page_for_testing(StringView name)
+         set_page(Step::Timezone);
+     else if (name == "accounts"sv)
+         set_page(Step::Accounts);
++    else if (name == "desktop"sv)
++        set_page(Step::Desktop);
+     else if (name == "options"sv)
+         set_page(Step::Options);
+     else if (name == "summary"sv)
+diff --git a/src/UI/MainWindow.h b/src/UI/MainWindow.h
+index 6713f52..d5eb295 100644
+--- a/src/UI/MainWindow.h
++++ b/src/UI/MainWindow.h
+@@ -42,6 +42,7 @@ private:
+         System,
+         Timezone,
+         Accounts,
++        Desktop,
+         Options,
+         Summary,
+         Progress,
+@@ -59,6 +60,7 @@ private:
+     void build_system_page();
+     void build_timezone_page();
+     void build_accounts_page();
++    void build_desktop_page();
+     void build_options_page();
+     void build_summary_page();
+     void build_progress_page();
+@@ -157,6 +159,7 @@ private:
+     RefPtr<GUI::Label> m_user_hint;
+     Vector<UserAccount> m_users;
+ 
++    RefPtr<GUI::CheckBox> m_install_desktop_checkbox;
+     RefPtr<GUI::CheckBox> m_remove_base_live_checkbox;
+     RefPtr<GUI::CheckBox> m_update_system_checkbox;
+     RefPtr<GUI::CheckBox> m_enable_syslog_checkbox;
