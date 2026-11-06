@@ -68,6 +68,15 @@ int main()
     config.bootloader = Bootloader::Limine;
     check(validate_config(config, disks).is_empty(), "default UEFI configuration validates");
 
+    // The Mounts page runs before System and Accounts. Its storage-only check
+    // must not reject the not-yet-entered hostname, time zone or root password.
+    auto storage_only = config;
+    storage_only.hostname = {};
+    storage_only.timezone = {};
+    storage_only.root_password = {};
+    check(validate_storage_config(storage_only, disks).is_empty(), "mount validation ignores later-page fields");
+    check(!validate_config(storage_only, disks).is_empty(), "full validation still requires later-page fields");
+
     auto broken = config;
     broken.mounts.clear();
     check(!validate_config(broken, disks).is_empty(), "missing root is rejected");

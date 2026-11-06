@@ -94,6 +94,11 @@ Vector<MountAssignment> mounts_from_plan(Vector<PlannedPartition> const& plan);
 // user-facing explanation of the first problem.
 ByteString validate_config(InstallConfig const&, Vector<DiskInfo> const& disks);
 
+// Validates only the disk, layout and mount assignment. The Mounts step uses
+// this so fields entered on later pages (hostname, time zone, accounts) do not
+// block navigation before those pages exist.
+ByteString validate_storage_config(InstallConfig const&, Vector<DiskInfo> const& disks);
+
 ByteString bootloader_name(Bootloader);
 ByteString filesystem_display_name(StringView fs_type);
 bool filesystem_is_fat(StringView fs_type);

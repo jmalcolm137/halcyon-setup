@@ -1205,7 +1205,10 @@ bool MainWindow::validate_current_page()
 
     case Step::Mounts: {
         auto config = build_config();
-        auto error = validate_config(config, m_disks);
+        // Only storage is entered on this page. Hostname, time zone and
+        // accounts are later steps; validating them here made Next fail with
+        // "Enter a root password" before the Accounts page could be reached.
+        auto error = validate_storage_config(config, m_disks);
         if (!error.is_empty()) {
             show_warning(*m_window, error.view());
             return false;

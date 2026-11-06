@@ -179,7 +179,7 @@ static bool valid_password(StringView password)
     return true;
 }
 
-ByteString validate_config(InstallConfig const& config, Vector<DiskInfo> const& disks)
+ByteString validate_storage_config(InstallConfig const& config, Vector<DiskInfo> const& disks)
 {
     if (config.target_device.is_empty())
         return "No installation device has been selected."sv;
@@ -270,6 +270,14 @@ ByteString validate_config(InstallConfig const& config, Vector<DiskInfo> const& 
         if (!(saw_boot && boot_is_fat) && !(saw_esp && esp_is_fat))
             return "UEFI systems need a FAT32 EFI system partition mounted at /boot or /boot/efi."sv;
     }
+
+    return {};
+}
+
+ByteString validate_config(InstallConfig const& config, Vector<DiskInfo> const& disks)
+{
+    if (auto error = validate_storage_config(config, disks); !error.is_empty())
+        return error;
 
     if (!valid_hostname(config.hostname))
         return "Enter a valid hostname (letters, digits, dots and hyphens; no leading or trailing hyphen)."sv;
