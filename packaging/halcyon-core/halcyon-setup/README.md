@@ -19,15 +19,16 @@ curl -L -o /tmp/halcyon-setup.tar.gz \
 sha256sum /tmp/halcyon-setup.tar.gz
 ```
 
-The r4 recipe carries four patches so the live ISO gets the compositor-socket
+The r5 recipe carries five patches so the live ISO gets the compositor-socket
 fallback, the Mounts-step validation fix, the combo-box lifetime/window size
-fixes, and the Desktop step/required-package/PATH fixes without waiting for a
-source release:
+fixes, the Desktop step/required-package/PATH fixes, and the format argv fix
+without waiting for a source release:
 
 - `patches/0001-resolve-sde-wayland-socket.patch`
 - `patches/0002-scope-mount-validation.patch`
 - `patches/0003-ui-combo-lifetime-and-size.patch`
 - `patches/0004-desktop-and-required-packages.patch`
+- `patches/0005-format-argv.patch`
 
 Drop them when `_commit` is bumped past the changes.
 
