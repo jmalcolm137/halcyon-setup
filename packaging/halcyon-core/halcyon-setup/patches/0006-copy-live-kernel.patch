@@ -1,0 +1,137 @@
+diff --git a/src/Installer/Installer.cpp b/src/Installer/Installer.cpp
+index d48c488..a7a32e4 100644
+--- a/src/Installer/Installer.cpp
++++ b/src/Installer/Installer.cpp
+@@ -265,28 +265,61 @@ struct KernelEntry {
+     ByteString initrd;
+ };
+ 
++static ByteString kernel_version_from_modules(ByteString const& target)
++{
++    for (auto root : { "/usr/lib/modules"sv, "/lib/modules"sv }) {
++        auto directory = ByteString::formatted("{}{}", target, root);
++        for (auto const& name : list_directory(directory)) {
++            auto path = ByteString::formatted("{}/{}", directory, name);
++            struct stat status;
++            if (stat(path.characters(), &status) == 0 && S_ISDIR(status.st_mode))
++                return name;
++        }
++    }
++    return {};
++}
++
+ static Vector<KernelEntry> find_kernels(ByteString const& target)
+ {
+     Vector<KernelEntry> kernels;
+     auto boot = ByteString::formatted("{}/boot", target);
+-    for (auto const& name : list_directory(boot)) {
++    auto names = list_directory(boot);
++
++    bool has_versioned_kernel = false;
++    for (auto const& name : names) {
++        if (name.starts_with("vmlinuz"sv) && name != "vmlinuz"sv)
++            has_versioned_kernel = true;
++    }
++
++    for (auto const& name : names) {
+         if (!name.starts_with("vmlinuz"sv))
+             continue;
+-        if (name == "vmlinuz"sv)
++        // Prefer vmlinuz-<version> over a plain vmlinuz symlink when both exist.
++        if (name == "vmlinuz"sv && has_versioned_kernel)
+             continue;
+ 
+         KernelEntry entry;
+-        entry.version = name.substring(7); // strip "vmlinuz"
+-        if (entry.version.starts_with('-'))
+-            entry.version = entry.version.substring(1);
++        if (name == "vmlinuz"sv) {
++            entry.version = kernel_version_from_modules(target);
++        } else {
++            entry.version = name.substring(7); // strip "vmlinuz"
++            if (entry.version.starts_with('-'))
++                entry.version = entry.version.substring(1);
++        }
+         entry.kernel = ByteString::formatted("/boot/{}", name);
+ 
+-        auto initrd_img = ByteString::formatted("/boot/initrd.img-{}", entry.version);
+-        auto initrd = ByteString::formatted("/boot/initrd-{}", entry.version);
+-        if (access(ByteString::formatted("{}{}", target, initrd_img).characters(), R_OK) == 0)
+-            entry.initrd = initrd_img;
+-        else if (access(ByteString::formatted("{}{}", target, initrd).characters(), R_OK) == 0)
+-            entry.initrd = initrd;
++        auto set_initrd = [&](ByteString const& candidate) {
++            if (!entry.initrd.is_empty())
++                return;
++            if (access(ByteString::formatted("{}{}", target, candidate).characters(), R_OK) == 0)
++                entry.initrd = candidate;
++        };
++        if (!entry.version.is_empty()) {
++            set_initrd(ByteString::formatted("/boot/initrd.img-{}", entry.version));
++            set_initrd(ByteString::formatted("/boot/initrd-{}", entry.version));
++        }
++        set_initrd("/boot/initrd.img"sv);
++        set_initrd("/boot/initrd"sv);
+         kernels.append(move(entry));
+     }
+     return kernels;
+@@ -355,6 +388,11 @@ public:
+         if (m_failed)
+             return finish();
+ 
++        if (!copy_live_boot_files())
++            return finish();
++        if (m_failed)
++            return finish();
++
+         if (!configure_desktop())
+             return finish();
+         if (m_failed)
+@@ -816,13 +854,35 @@ private:
+     {
+         advance(55, "Installing required system tools"sv);
+         return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
+-                       "uutils-coreutils"sv, "bcachefs-tools"sv, "ckms"sv, "linux-stable-bcachefs-bin"sv },
+-            "Installing uutils, bcachefs tools, ckms and the bcachefs kernel module"sv, {}, 600);
++                       "uutils-coreutils"sv, "bcachefs-tools"sv, "ckms"sv, "linux-stable"sv,
++                       "linux-stable-bcachefs-bin"sv },
++            "Installing uutils, bcachefs tools, ckms, the kernel and the bcachefs module"sv, {}, 600);
++    }
++
++    bool copy_live_boot_files()
++    {
++        advance(56, "Copying the live kernel into the target /boot"sv);
++        auto target_boot = ByteString::formatted("{}/boot", m_target);
++        make_path(target_boot);
++        for (auto const& name : list_directory("/boot"sv)) {
++            if (!name.starts_with("vmlinuz"sv) && !name.starts_with("config-"sv))
++                continue;
++            auto destination = ByteString::formatted("{}/{}", target_boot, name);
++            if (access(destination.characters(), F_OK) == 0)
++                continue;
++            if (!copy_file(ByteString::formatted("/boot/{}", name), destination)) {
++                m_failed = true;
++                m_error = ByteString::formatted("Could not copy /boot/{} into the target.", name);
++                return false;
++            }
++            log(ByteString::formatted("Copied /boot/{} into the target", name));
++        }
++        return true;
+     }
+ 
+     bool configure_desktop()
+     {
+-        advance(56, "Configuring the desktop environment"sv);
++        advance(57, "Configuring the desktop environment"sv);
+         if (m_config.install_desktop) {
+             return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
+                            "serenity-desktop"sv, "sddm"sv, "sddm-default-cage"sv, "sddm-theme-none"sv },
+@@ -873,7 +933,7 @@ private:
+ 
+     bool configure_system()
+     {
+-        advance(56, "Configuring the installed system"sv);
++        advance(58, "Configuring the installed system"sv);
+ 
+         auto hostname_path = ByteString::formatted("{}/etc/hostname", m_target);
+         write_file(hostname_path, ByteString::formatted("{}\n", m_config.hostname));
