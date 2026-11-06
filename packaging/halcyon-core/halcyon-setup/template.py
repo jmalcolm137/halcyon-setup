@@ -1,6 +1,6 @@
 pkgname = "halcyon-setup"
 pkgver = "0.1.0"
-pkgrel = 0
+pkgrel = 1
 pkgdesc = "Windows 95-style installation wizard for Halcyon Linux"
 license = "BSD-2-Clause"
 url = "https://github.com/jmalcolm137/halcyon-setup"
@@ -77,7 +77,10 @@ def install(self):
     self.install_license("LICENSE")
 
     self.install_file(
-        "build/halcyon-setup", "usr/lib/sde/bin", name="halcyon-setup.real", mode=0o755
+        "build/halcyon-setup",
+        "usr/lib/sde/bin",
+        name="halcyon-setup.real",
+        mode=0o755,
     )
     self.install_file(
         "res/halcyon-setup", "usr/bin", name="halcyon-setup", mode=0o755

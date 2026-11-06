@@ -88,6 +88,11 @@ preserves the Wayland session environment:
 sudo ./build/halcyon-setup
 ```
 
+On the live ISO, use the **Install Halcyon Linux** desktop icon or run
+`halcyon-setup` from the SDE Terminal. The launcher resolves the compositor's
+`sde` socket even when the session exports a stale `WAYLAND_DISPLAY`, and the
+live PolicyKit rule allows the active local user to elevate without an agent.
+
 For development without root, use `--demo`; it uses two synthetic disks and
 never writes to the system:
 

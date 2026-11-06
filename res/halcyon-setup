@@ -6,6 +6,35 @@ set -eu
 
 REAL=${HALCYON_SETUP_REAL:-/usr/lib/sde/bin/halcyon-setup.real}
 
+# The SDE compositor names its Wayland socket "sde". The display manager can
+# leave a stale WAYLAND_DISPLAY (usually wayland-0) in the live session; only
+# honour that name when the socket actually exists, otherwise fall back to the
+# SDE socket. Resolve this before pkexec so the privileged child inherits the
+# name that is really in use.
+if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+    RUNTIME_DIR=$XDG_RUNTIME_DIR
+else
+    RUNTIME_DIR=/run/user/$(id -u)
+fi
+WAYLAND_SOCKET=
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    case "$WAYLAND_DISPLAY" in
+        /*) WAYLAND_SOCKET=$WAYLAND_DISPLAY ;;
+        *) WAYLAND_SOCKET=$RUNTIME_DIR/$WAYLAND_DISPLAY ;;
+    esac
+fi
+if [ -z "${WAYLAND_DISPLAY:-}" ] || [ ! -S "$WAYLAND_SOCKET" ]; then
+    if [ -S "$RUNTIME_DIR/sde" ]; then
+        WAYLAND_DISPLAY=sde
+    fi
+fi
+if [ -d "$RUNTIME_DIR" ]; then
+    export XDG_RUNTIME_DIR="$RUNTIME_DIR"
+fi
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    export WAYLAND_DISPLAY
+fi
+
 if [ "$(id -u)" = 0 ]; then
     export SERENITY_RES_ROOT="${SERENITY_RES_ROOT:-/usr/lib/sde/share/res}"
     export HALCYON_SETUP_MAP="${HALCYON_SETUP_MAP:-/usr/share/halcyon-setup/world-map.png}"
