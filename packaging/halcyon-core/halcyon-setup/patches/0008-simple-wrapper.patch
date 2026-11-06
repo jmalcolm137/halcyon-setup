@@ -1,0 +1,99 @@
+diff --git a/res/halcyon-setup b/res/halcyon-setup
+index f96e1a5..16a69de 100755
+--- a/res/halcyon-setup
++++ b/res/halcyon-setup
+@@ -4,43 +4,22 @@
+ # Wayland session variables the toolkit needs.
+ set -eu
+ 
+-# The SDE session PATH usually omits /usr/sbin. The installer formats disks
+-# and bootstraps the target, so give every child a complete system PATH.
+-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+-export PATH
+-
+ REAL=${HALCYON_SETUP_REAL:-/usr/lib/sde/bin/halcyon-setup.real}
++RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+ 
+-# The SDE compositor names its Wayland socket "sde". The display manager can
+-# leave a stale WAYLAND_DISPLAY (usually wayland-0) in the live session; only
+-# honour that name when the socket actually exists, otherwise fall back to the
+-# SDE socket. Resolve this before pkexec so the privileged child inherits the
+-# name that is really in use.
+-if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+-    RUNTIME_DIR=$XDG_RUNTIME_DIR
+-else
+-    RUNTIME_DIR=/run/user/$(id -u)
+-fi
+-WAYLAND_SOCKET=
+-if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+-    case "$WAYLAND_DISPLAY" in
+-        /*) WAYLAND_SOCKET=$WAYLAND_DISPLAY ;;
+-        *) WAYLAND_SOCKET=$RUNTIME_DIR/$WAYLAND_DISPLAY ;;
+-    esac
+-fi
+-if [ -z "${WAYLAND_DISPLAY:-}" ] || [ ! -S "$WAYLAND_SOCKET" ]; then
+-    if [ -S "$RUNTIME_DIR/sde" ]; then
+-        WAYLAND_DISPLAY=sde
+-    fi
+-fi
+-if [ -d "$RUNTIME_DIR" ]; then
+-    export XDG_RUNTIME_DIR="$RUNTIME_DIR"
+-fi
+-if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+-    export WAYLAND_DISPLAY
++# The SDE compositor names its socket "sde". Prefer the session's display when
++# its socket exists, otherwise fall back to sde so a stale wayland-0 does not
++# prevent the wizard from connecting.
++DISPLAY_NAME=sde
++if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -S "$RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
++    DISPLAY_NAME=$WAYLAND_DISPLAY
+ fi
+ 
+ if [ "$(id -u)" = 0 ]; then
++    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++    export XDG_RUNTIME_DIR="$RUNTIME_DIR"
++    export WAYLAND_DISPLAY="$DISPLAY_NAME"
++    export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
+     export SERENITY_RES_ROOT="${SERENITY_RES_ROOT:-/usr/lib/sde/share/res}"
+     export HALCYON_SETUP_MAP="${HALCYON_SETUP_MAP:-/usr/share/halcyon-setup/world-map.png}"
+     export HALCYON_SETUP_ICON="${HALCYON_SETUP_ICON:-/usr/share/icons/hicolor/32x32/apps/halcyon-setup.png}"
+@@ -50,28 +29,16 @@ if [ "$(id -u)" = 0 ]; then
+     exec "$REAL" "$@"
+ fi
+ 
+-PKEXEC=$(command -v pkexec 2>/dev/null || true)
+-ENV_BIN=$(command -v env 2>/dev/null || echo /usr/bin/env)
+-if [ -z "$PKEXEC" ]; then
+-    echo "halcyon-setup: pkexec is required to authenticate; run it as root instead." >&2
+-    exit 1
+-fi
+-
+-RES_ROOT=${SERENITY_RES_ROOT:-/usr/lib/sde/share/res}
+-MAP=${HALCYON_SETUP_MAP:-/usr/share/halcyon-setup/world-map.png}
+-ICON=${HALCYON_SETUP_ICON:-/usr/share/icons/hicolor/32x32/apps/halcyon-setup.png}
+-LIB_PATH=
+-if [ -d /usr/lib/sde/lib ]; then
+-    LIB_PATH=/usr/lib/sde/lib
+-fi
+-
+-exec "$PKEXEC" "$ENV_BIN" \
+-    PATH="$PATH" \
+-    WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+-    XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
++# Keep this deliberately simple: the live image's /bin/sh is mksh, and the
++# previous command-substitution-heavy launcher could exit before executing
++# pkexec. Absolute paths avoid PATH and shell lookup differences.
++exec /usr/bin/pkexec /usr/bin/env \
++    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
++    WAYLAND_DISPLAY="$DISPLAY_NAME" \
++    XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+     XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}" \
+-    SERENITY_RES_ROOT="$RES_ROOT" \
+-    HALCYON_SETUP_MAP="$MAP" \
+-    HALCYON_SETUP_ICON="$ICON" \
+-    LD_LIBRARY_PATH="$LIB_PATH" \
++    SERENITY_RES_ROOT="${SERENITY_RES_ROOT:-/usr/lib/sde/share/res}" \
++    HALCYON_SETUP_MAP="${HALCYON_SETUP_MAP:-/usr/share/halcyon-setup/world-map.png}" \
++    HALCYON_SETUP_ICON="${HALCYON_SETUP_ICON:-/usr/share/icons/hicolor/32x32/apps/halcyon-setup.png}" \
++    LD_LIBRARY_PATH=/usr/lib/sde/lib \
+     "$REAL" "$@"
