@@ -202,7 +202,7 @@ ErrorOr<void> MainWindow::build_ui()
 
     m_sidebar = body.add<WizardSidebar>();
     Vector<ByteString> steps;
-    for (auto const* step : { "Welcome", "Disk", "Mount points", "Bootloader", "System", "Time zone", "Accounts", "Options", "Summary", "Install" })
+    for (auto const* step : { "Welcome", "Disk", "Mount points", "Bootloader", "System", "Time zone", "Accounts", "Desktop", "Options", "Summary", "Install" })
         steps.append(ByteString { step });
     m_sidebar->set_steps(move(steps));
 
@@ -319,6 +319,7 @@ void MainWindow::build_pages()
     build_system_page();
     build_timezone_page();
     build_accounts_page();
+    build_desktop_page();
     build_options_page();
     build_summary_page();
     build_progress_page();
@@ -724,6 +725,39 @@ void MainWindow::build_accounts_page()
     page.add_spacer();
 }
 
+void MainWindow::build_desktop_page()
+{
+    auto& page = m_stack->add<GUI::Widget>();
+    page.set_layout<GUI::VerticalBoxLayout>(GUI::Margins { 18, 14 }, 9);
+    m_pages.append(&page);
+
+    auto& title = page.add<GUI::Label>("Desktop environment"_string);
+    title.set_font_size(18);
+    title.set_font_weight(700);
+    title.set_text_alignment(Gfx::TextAlignment::CenterLeft);
+    title.set_fixed_height(28);
+
+    auto& intro = page.add<GUI::Label>(
+        "Choose whether the installed system should start the Serenity Desktop Environment. The base "
+        "system, the GNU userland, bcachefs tools and the kernel modules are installed either way."_string);
+    intro.set_text_wrapping(Gfx::TextWrapping::Wrap);
+    intro.set_text_alignment(Gfx::TextAlignment::CenterLeft);
+    intro.set_fixed_height(58);
+
+    m_install_desktop_checkbox = page.add<GUI::CheckBox>("Install the Serenity Desktop Environment (SDE)"_string);
+    m_install_desktop_checkbox->set_checked(true);
+
+    auto& note = page.add<GUI::Label>(
+        "Clearing this option removes the SDE session, display manager and SDE browser from the target. "
+        "The system will boot to a text console; you can install a desktop later with apk."_string);
+    note.set_text_wrapping(Gfx::TextWrapping::Wrap);
+    note.set_text_alignment(Gfx::TextAlignment::CenterLeft);
+    note.set_foreground_role(Gfx::ColorRole::DisabledText);
+    note.set_fixed_height(52);
+
+    page.add_spacer();
+}
+
 void MainWindow::build_options_page()
 {
     auto& page = m_stack->add<GUI::Widget>();
@@ -1117,6 +1151,7 @@ void MainWindow::update_summary()
     builder.appendff("Keyboard: {}\n", keyboard_description(config.keyboard_layout));
     builder.appendff("Hardware clock: {}\n", config.hardware_clock_localtime ? "local time"sv : "UTC"sv);
     builder.appendff("Bootloader: {}\n", bootloader_name(config.bootloader));
+    builder.appendff("Desktop environment: {}\n", config.install_desktop ? "Serenity Desktop Environment"sv : "none"sv);
     builder.appendff("Root password: (set)\n");
     if (config.users.is_empty()) {
         builder.append("Users: (none - root only)\n"sv);
@@ -1170,6 +1205,7 @@ InstallConfig MainWindow::build_config() const
     config.hardware_clock_localtime = m_rtc_localtime_radio && m_rtc_localtime_radio->is_checked();
     config.bootloader = (m_grub_radio && m_grub_radio->is_checked()) ? Bootloader::Grub : Bootloader::Limine;
 
+    config.install_desktop = !m_install_desktop_checkbox || m_install_desktop_checkbox->is_checked();
     config.remove_base_live = !m_remove_base_live_checkbox || m_remove_base_live_checkbox->is_checked();
     config.update_system = !m_update_system_checkbox || m_update_system_checkbox->is_checked();
     config.enable_syslog = !m_enable_syslog_checkbox || m_enable_syslog_checkbox->is_checked();
@@ -1257,6 +1293,9 @@ bool MainWindow::validate_current_page()
         return true;
     }
 
+    case Step::Desktop:
+        return true;
+
     case Step::Options:
         return true;
 
@@ -1327,6 +1366,9 @@ void MainWindow::set_page(Step step)
         break;
     case Step::Accounts:
         hint = "Set the root password and create user accounts."sv;
+        break;
+    case Step::Desktop:
+        hint = "Choose whether to install the Serenity Desktop Environment."sv;
         break;
     case Step::Options:
         hint = "Choose post-installation services and tasks."sv;
@@ -1660,6 +1702,8 @@ void MainWindow::show_page_for_testing(StringView name)
         set_page(Step::Timezone);
     else if (name == "accounts"sv)
         set_page(Step::Accounts);
+    else if (name == "desktop"sv)
+        set_page(Step::Desktop);
     else if (name == "options"sv)
         set_page(Step::Options);
     else if (name == "summary"sv)

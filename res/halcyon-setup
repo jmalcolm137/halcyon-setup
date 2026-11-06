@@ -4,6 +4,11 @@
 # Wayland session variables the toolkit needs.
 set -eu
 
+# The SDE session PATH usually omits /usr/sbin. The installer formats disks
+# and bootstraps the target, so give every child a complete system PATH.
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
 REAL=${HALCYON_SETUP_REAL:-/usr/lib/sde/bin/halcyon-setup.real}
 
 # The SDE compositor names its Wayland socket "sde". The display manager can
@@ -61,6 +66,7 @@ if [ -d /usr/lib/sde/lib ]; then
 fi
 
 exec "$PKEXEC" "$ENV_BIN" \
+    PATH="$PATH" \
     WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
     XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
     XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}" \

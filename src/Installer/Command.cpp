@@ -39,12 +39,20 @@ ByteString resolve_command(StringView program)
     }
 
     auto const* path = getenv("PATH");
-    if (!path)
-        return {};
-
-    auto directories = ByteString { path }.split(':');
+    // Keep the ByteString alive: split() returns views into it.
+    auto path_string = path && *path ? ByteString { path } : ByteString {};
+    auto directories = path_string.split(':');
     for (auto const& directory : directories) {
         auto candidate = ByteString::formatted("{}/{}", directory.is_empty() ? "."sv : directory.view(), program);
+        if (access(candidate.characters(), X_OK) == 0)
+            return candidate;
+    }
+
+    // pkexec and some desktop launchers hand the installer a shortened PATH.
+    // Fall back to the standard system directories before giving up.
+    auto fallback_path = ByteString { "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"sv };
+    for (auto const& directory : fallback_path.split(':')) {
+        auto candidate = ByteString::formatted("{}/{}", directory, program);
         if (access(candidate.characters(), X_OK) == 0)
             return candidate;
     }

@@ -53,6 +53,7 @@ struct InstallConfig {
 
     Bootloader bootloader { Bootloader::Limine };
 
+    bool install_desktop { true };
     bool remove_base_live { true };
     bool update_system { true };
     bool enable_syslog { true };

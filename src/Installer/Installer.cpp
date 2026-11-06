@@ -350,6 +350,16 @@ public:
         if (m_failed)
             return finish();
 
+        if (!install_required_packages())
+            return finish();
+        if (m_failed)
+            return finish();
+
+        if (!configure_desktop())
+            return finish();
+        if (m_failed)
+            return finish();
+
         if (!configure_system())
             return finish();
         if (m_failed)
@@ -444,6 +454,16 @@ private:
                 m_error = ByteString::formatted("Required program '{}' was not found.", program);
                 return false;
             }
+        }
+        if (!command_exists("mkfs.fat"sv) && !command_exists("mkfs.vfat"sv)) {
+            m_failed = true;
+            m_error = "Required program 'mkfs.fat' (dosfstools) was not found."sv;
+            return false;
+        }
+        if (!command_exists("bcachefs"sv) && !command_exists("mkfs.bcachefs"sv)) {
+            m_failed = true;
+            m_error = "Formatting bcachefs requires bcachefs-tools, but it was not found."sv;
+            return false;
         }
 
         auto probe = probe_devices();
@@ -597,7 +617,9 @@ private:
         auto program = ByteString {};
 
         if (filesystem_is_fat(fs_type)) {
-            program = "mkfs.vfat"sv;
+            // dosfstools provides mkfs.fat; some images only expose the
+            // mkfs.vfat compatibility name. Prefer the real binary.
+            program = command_exists("mkfs.fat"sv) ? "mkfs.fat"sv : "mkfs.vfat"sv;
             arguments.append("-F"sv);
             arguments.append(fs_type == "fat16"sv ? "16"sv : "32"sv);
             if (!label.is_empty()) {
@@ -784,6 +806,31 @@ private:
                 run({ "chimera-chroot"sv, m_target, "apk"sv, "upgrade"sv, "--available"sv }, "Upgrading installed packages"sv, {}, 900, true);
         }
 
+        return true;
+    }
+
+    bool install_required_packages()
+    {
+        advance(55, "Installing required system tools"sv);
+        return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
+                       "uutils-coreutils"sv, "bcachefs-tools"sv, "ckms"sv, "linux-stable-bcachefs-bin"sv },
+            "Installing uutils, bcachefs tools, ckms and the bcachefs kernel module"sv, {}, 600);
+    }
+
+    bool configure_desktop()
+    {
+        advance(56, "Configuring the desktop environment"sv);
+        if (m_config.install_desktop) {
+            return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
+                           "serenity-desktop"sv, "sddm"sv, "sddm-default-cage"sv, "sddm-theme-none"sv },
+                "Installing the Serenity Desktop Environment"sv, {}, 900);
+        }
+
+        // Keep the required tools above, but leave a console-only system.
+        run({ "chimera-chroot"sv, m_target, "apk"sv, "del"sv,
+                "serenity-desktop"sv, "serenity-lagom"sv, "sddm"sv, "sddm-default-cage"sv,
+                "sddm-theme-none"sv, "ladybird-sde"sv },
+            "Removing the Serenity Desktop Environment"sv, {}, 600, true);
         return true;
     }
 

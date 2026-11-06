@@ -42,6 +42,7 @@ private:
         System,
         Timezone,
         Accounts,
+        Desktop,
         Options,
         Summary,
         Progress,
@@ -59,6 +60,7 @@ private:
     void build_system_page();
     void build_timezone_page();
     void build_accounts_page();
+    void build_desktop_page();
     void build_options_page();
     void build_summary_page();
     void build_progress_page();
@@ -157,6 +159,7 @@ private:
     RefPtr<GUI::Label> m_user_hint;
     Vector<UserAccount> m_users;
 
+    RefPtr<GUI::CheckBox> m_install_desktop_checkbox;
     RefPtr<GUI::CheckBox> m_remove_base_live_checkbox;
     RefPtr<GUI::CheckBox> m_update_system_checkbox;
     RefPtr<GUI::CheckBox> m_enable_syslog_checkbox;

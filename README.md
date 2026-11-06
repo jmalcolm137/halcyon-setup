@@ -118,16 +118,20 @@ Useful non-GUI commands:
 5. **System** — hostname, keyboard layout and hardware clock.
 6. **Time zone** — click the world map or pick an IANA zone.
 7. **Accounts** — root password and user accounts.
-8. **Options** — post-installation services and update choices.
-9. **Summary** — final review and confirmation.
-10. **Install** — progress and a live log.
-11. **Finished** — remove the media and restart.
+8. **Desktop** — install the Serenity Desktop Environment or leave the target
+   as a console-only system.
+9. **Options** — post-installation services and update choices.
+10. **Summary** — final review and confirmation.
+11. **Install** — progress and a live log.
+12. **Finished** — remove the media and restart.
 
 The backend performs the handbook's sequence: wipe and partition (whole-device
-mode), create filesystems, mount the target, `chimera-bootstrap -l`, configure
-the system through `chimera-chroot`, generate `/etc/fstab`, create users and
-passwords, enable services, run `update-initramfs -c -k all`, install the
-bootloader, and unmount everything even on failure.
+mode), create filesystems, mount the target, `chimera-bootstrap -l`, ensure
+`uutils-coreutils`, `bcachefs-tools`, `ckms` and the bcachefs kernel module are
+installed, add or remove the SDE, configure the system through `chimera-chroot`,
+generate `/etc/fstab`, create users and passwords, enable services, run
+`update-initramfs -c -k all`, install the bootloader, and unmount everything
+even on failure.
 
 ## Packaging and the live ISO
 
