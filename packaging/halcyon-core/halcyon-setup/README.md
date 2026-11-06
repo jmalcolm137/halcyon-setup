@@ -19,10 +19,14 @@ curl -L -o /tmp/halcyon-setup.tar.gz \
 sha256sum /tmp/halcyon-setup.tar.gz
 ```
 
-The r1 recipe carries
-`patches/0001-resolve-sde-wayland-socket.patch` so the live ISO gets the
-compositor-socket fallback without waiting for a source release. Drop that
-patch when `_commit` is bumped past the change.
+The r2 recipe carries two patches so the live ISO gets the compositor-socket
+fallback and the Mounts-step validation fix without waiting for a source
+release:
+
+- `patches/0001-resolve-sde-wayland-socket.patch`
+- `patches/0002-scope-mount-validation.patch`
+
+Drop them when `_commit` is bumped past both changes.
 
 Then build with:
 

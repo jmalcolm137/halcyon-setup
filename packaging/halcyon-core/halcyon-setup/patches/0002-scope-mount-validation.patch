@@ -1,0 +1,80 @@
+diff --git a/src/Installer/Config.cpp b/src/Installer/Config.cpp
+index b1aa698..1920bc7 100644
+--- a/src/Installer/Config.cpp
++++ b/src/Installer/Config.cpp
+@@ -179,7 +179,7 @@ static bool valid_password(StringView password)
+     return true;
+ }
+ 
+-ByteString validate_config(InstallConfig const& config, Vector<DiskInfo> const& disks)
++ByteString validate_storage_config(InstallConfig const& config, Vector<DiskInfo> const& disks)
+ {
+     if (config.target_device.is_empty())
+         return "No installation device has been selected."sv;
+@@ -271,6 +271,14 @@ ByteString validate_config(InstallConfig const& config, Vector<DiskInfo> const&
+             return "UEFI systems need a FAT32 EFI system partition mounted at /boot or /boot/efi."sv;
+     }
+ 
++    return {};
++}
++
++ByteString validate_config(InstallConfig const& config, Vector<DiskInfo> const& disks)
++{
++    if (auto error = validate_storage_config(config, disks); !error.is_empty())
++        return error;
++
+     if (!valid_hostname(config.hostname))
+         return "Enter a valid hostname (letters, digits, dots and hyphens; no leading or trailing hyphen)."sv;
+ 
+diff --git a/src/Installer/Config.h b/src/Installer/Config.h
+index d9ff785..ad0a340 100644
+--- a/src/Installer/Config.h
++++ b/src/Installer/Config.h
+@@ -94,6 +94,11 @@ Vector<MountAssignment> mounts_from_plan(Vector<PlannedPartition> const& plan);
+ // user-facing explanation of the first problem.
+ ByteString validate_config(InstallConfig const&, Vector<DiskInfo> const& disks);
+ 
++// Validates only the disk, layout and mount assignment. The Mounts step uses
++// this so fields entered on later pages (hostname, time zone, accounts) do not
++// block navigation before those pages exist.
++ByteString validate_storage_config(InstallConfig const&, Vector<DiskInfo> const& disks);
++
+ ByteString bootloader_name(Bootloader);
+ ByteString filesystem_display_name(StringView fs_type);
+ bool filesystem_is_fat(StringView fs_type);
+diff --git a/src/UI/MainWindow.cpp b/src/UI/MainWindow.cpp
+index efe99f9..c0f8675 100644
+--- a/src/UI/MainWindow.cpp
++++ b/src/UI/MainWindow.cpp
+@@ -1205,7 +1205,10 @@ bool MainWindow::validate_current_page()
+ 
+     case Step::Mounts: {
+         auto config = build_config();
+-        auto error = validate_config(config, m_disks);
++        // Only storage is entered on this page. Hostname, time zone and
++        // accounts are later steps; validating them here made Next fail with
++        // "Enter a root password" before the Accounts page could be reached.
++        auto error = validate_storage_config(config, m_disks);
+         if (!error.is_empty()) {
+             show_warning(*m_window, error.view());
+             return false;
+diff --git a/tests/plan-test.cpp b/tests/plan-test.cpp
+index 31716db..cf0f58c 100644
+--- a/tests/plan-test.cpp
++++ b/tests/plan-test.cpp
+@@ -68,6 +68,15 @@ int main()
+     config.bootloader = Bootloader::Limine;
+     check(validate_config(config, disks).is_empty(), "default UEFI configuration validates");
+ 
++    // The Mounts page runs before System and Accounts. Its storage-only check
++    // must not reject the not-yet-entered hostname, time zone or root password.
++    auto storage_only = config;
++    storage_only.hostname = {};
++    storage_only.timezone = {};
++    storage_only.root_password = {};
++    check(validate_storage_config(storage_only, disks).is_empty(), "mount validation ignores later-page fields");
++    check(!validate_config(storage_only, disks).is_empty(), "full validation still requires later-page fields");
++
+     auto broken = config;
+     broken.mounts.clear();
+     check(!validate_config(broken, disks).is_empty(), "missing root is rejected");
