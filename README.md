@@ -27,6 +27,9 @@ existing partition layout with mount points chosen by the user.
   `PartitionEditor`.
 - **Bootloader choice**: Limine (the Halcyon default) or GRUB, with the
   handling appropriate for UEFI and legacy BIOS.
+- **Desktop choice**: install the Serenity Desktop Environment or leave a
+  console-only system. `uutils-coreutils`, `bcachefs-tools`, `ckms` and the
+  bcachefs kernel module are installed regardless of the choice.
 - **Root password** and an arbitrary number of normal user accounts, including
   the `wheel`, `kvm` and `plugdev` groups.
 - **Clickable world map** for the time zone. The map is equirectangular
