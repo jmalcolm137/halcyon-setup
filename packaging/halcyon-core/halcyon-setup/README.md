@@ -19,6 +19,11 @@ curl -L -o /tmp/halcyon-setup.tar.gz \
 sha256sum /tmp/halcyon-setup.tar.gz
 ```
 
+The r1 recipe carries
+`patches/0001-resolve-sde-wayland-socket.patch` so the live ISO gets the
+compositor-socket fallback without waiting for a source release. Drop that
+patch when `_commit` is bumped past the change.
+
 Then build with:
 
 ```
