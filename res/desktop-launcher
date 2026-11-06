@@ -1,0 +1,4 @@
+#!/bin/sh
+# Desktop launcher for the live session. A .desktop file on the SDE desktop is
+# treated as text by the file manager, so use an executable launcher instead.
+exec /usr/bin/halcyon-setup

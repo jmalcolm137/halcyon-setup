@@ -1,6 +1,6 @@
 pkgname = "halcyon-setup"
 pkgver = "0.1.0"
-pkgrel = 6
+pkgrel = 7
 pkgdesc = "Windows 95-style installation wizard for Halcyon Linux"
 license = "BSD-2-Clause"
 url = "https://github.com/jmalcolm137/halcyon-setup"
@@ -93,7 +93,10 @@ def install(self):
         "res/HalcyonSetup.desktop", "usr/share/applications", mode=0o644
     )
     self.install_file(
-        "res/HalcyonSetup.desktop", "etc/skel/Desktop", mode=0o755
+        "res/desktop-launcher",
+        "etc/skel/Desktop",
+        name="Install Halcyon Linux",
+        mode=0o755,
     )
 
     self.install_file(

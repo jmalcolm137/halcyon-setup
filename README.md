@@ -144,7 +144,8 @@ even on failure.
 - `/usr/lib/sde/bin/halcyon-setup.real` — the binary
 - `/usr/bin/halcyon-setup` — the `pkexec` wrapper
 - `/usr/share/applications/halcyon-setup.desktop`
-- `/etc/skel/Desktop/HalcyonSetup.desktop` — the live-session desktop link
+- `/etc/skel/Desktop/Install Halcyon Linux` — an executable live-session
+  desktop launcher
 - icons and `/usr/share/halcyon-setup/world-map.png`
 
 After tagging a release, set `_commit` and `sha256` in the recipe. The Halcyon

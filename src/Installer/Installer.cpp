@@ -793,6 +793,12 @@ private:
 
         chmod(m_target.characters(), 0755);
 
+        // The upstream chimera-chroot mounts these over the target without
+        // creating them. Make the mount points now; the live overlay has the
+        // same workaround, but the installer must work without it too.
+        for (auto directory : { "dev"sv, "proc"sv, "sys"sv, "tmp"sv })
+            make_path(ByteString::formatted("{}/{}", m_target, directory));
+
         for (auto const& mount : m_config.mounts) {
             if (mount.mountpoint != "swap"sv)
                 continue;
@@ -980,9 +986,10 @@ private:
                 return false;
         }
 
-        // The live session has a desktop link to the setup wizard. Do not
-        // copy it into the installed system's skeleton for new users.
+        // The live session has desktop launchers for the setup wizard. Do not
+        // copy them into the installed system's skeleton for new users.
         unlink(ByteString::formatted("{}/etc/skel/Desktop/HalcyonSetup.desktop", m_target).characters());
+        unlink(ByteString::formatted("{}/etc/skel/Desktop/Install Halcyon Linux", m_target).characters());
 
         advance(64, "Creating user accounts"sv);
         for (auto const& user : m_config.users) {

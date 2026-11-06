@@ -19,7 +19,7 @@ curl -L -o /tmp/halcyon-setup.tar.gz \
 sha256sum /tmp/halcyon-setup.tar.gz
 ```
 
-The r6 recipe carries six patches so the live ISO gets the compositor-socket
+The r7 recipe carries seven patches so the live ISO gets the compositor-socket
 fallback, the Mounts-step validation fix, the combo-box lifetime/window size
 fixes, the Desktop step/required-package/PATH fixes, the format argv fix, and
 the live kernel copy without waiting for a source release:
@@ -30,6 +30,7 @@ the live kernel copy without waiting for a source release:
 - `patches/0004-desktop-and-required-packages.patch`
 - `patches/0005-format-argv.patch`
 - `patches/0006-copy-live-kernel.patch`
+- `patches/0007-desktop-launcher.patch`
 
 Drop them when `_commit` is bumped past the changes.
 
@@ -40,10 +41,12 @@ cd ../cports
 ./cbuild -b bldroot-halcyon pkg halcyon-core/halcyon-setup
 ```
 
-The package installs the wizard, its desktop entries, icons, world map, and
-`/etc/skel/Desktop/HalcyonSetup.desktop`. The live `anon` home is created with
-`useradd -m`, which copies `/etc/skel`, so the desktop link appears in the live
-session automatically.
+The package installs the wizard, its menu entries, icons, world map, and an
+executable `/etc/skel/Desktop/Install Halcyon Linux` launcher. The live `anon`
+home is created with `useradd -m`, which copies `/etc/skel`, so the launcher
+appears in the live session automatically. The SDE file manager runs
+executable desktop files and treats non-executable `.desktop` files as text,
+so the desktop shortcut is a launcher script rather than a `.desktop` file.
 
 To include it in the SDE ISO, add `halcyon-setup` to the `sde` package list in
 `halcyon/mklive-image.sh` and build it in `halcyon/build-halcyon-iso.sh`.
