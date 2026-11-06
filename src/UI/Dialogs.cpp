@@ -206,12 +206,14 @@ private:
         warning.set_foreground_role(Gfx::ColorRole::Red);
 
         auto& fs_row = add_labeled_row(main, "Filesystem:"sv, 90);
-        Vector<ByteString> file_systems = {
+        // ItemListModel keeps a reference to the container; the dialog owns it
+        // so the model does not point at a destroyed local vector.
+        m_file_systems = {
             "bcachefs"sv, "ext4"sv, "btrfs"sv, "xfs"sv, "f2fs"sv, "vfat"sv, "swap"sv,
         };
         m_fs = fs_row.add<GUI::ComboBox>();
         m_fs->set_only_allow_values_from_model(true);
-        m_fs->set_model(*GUI::ItemListModel<ByteString>::create(file_systems));
+        m_fs->set_model(*GUI::ItemListModel<ByteString>::create(m_file_systems));
         m_fs->set_text(assignment.fs_type.is_empty() ? ByteString { "bcachefs" } : assignment.fs_type);
 
         auto& label_row = add_labeled_row(main, "Label:"sv, 90);
@@ -244,6 +246,7 @@ private:
     }
 
     MountAssignment m_result;
+    Vector<ByteString> m_file_systems;
     RefPtr<GUI::ComboBox> m_fs;
     RefPtr<GUI::TextBox> m_label;
 };

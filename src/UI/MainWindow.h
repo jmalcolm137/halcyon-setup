@@ -110,6 +110,7 @@ private:
 
     Vector<DiskInfo> m_disks;
     Vector<ByteString> m_device_paths;
+    Vector<ByteString> m_device_labels;
     bool m_uefi { false };
     PlanResult m_plan;
     ByteString m_probe_error;
@@ -138,6 +139,7 @@ private:
 
     RefPtr<GUI::TextBox> m_hostname_input;
     RefPtr<GUI::ComboBox> m_keyboard_combo;
+    Vector<ByteString> m_keyboard_layouts;
     RefPtr<GUI::RadioButton> m_rtc_utc_radio;
     RefPtr<GUI::RadioButton> m_rtc_localtime_radio;
 

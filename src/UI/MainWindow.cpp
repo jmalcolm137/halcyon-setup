@@ -171,7 +171,7 @@ ErrorOr<void> MainWindow::build_ui()
     if (!window_icon)
         window_icon = m_app_icon.bitmap_for_size(16);
     m_window->set_icon(window_icon);
-    m_window->resize(820, 610);
+    m_window->resize(820, 700);
     m_window->on_close_request = [this] {
         if (m_installing) {
             show_warning(*m_window, "The installation is still running. Use Cancel in the wizard to stop it."sv);
@@ -188,7 +188,7 @@ ErrorOr<void> MainWindow::build_ui()
 
     auto root_ref = m_window->set_main_widget<GUI::Widget>();
     auto& root = *root_ref;
-    root.set_min_size(780, 600);
+    root.set_min_size(780, 680);
     root.set_fill_with_background_color(true);
     root.set_layout<GUI::VerticalBoxLayout>(GUI::Margins {}, 0);
 
@@ -546,11 +546,14 @@ void MainWindow::build_system_page()
     keyboard_label.set_text_alignment(Gfx::TextAlignment::CenterLeft);
     m_keyboard_combo = keyboard_row.add<GUI::ComboBox>();
     m_keyboard_combo->set_only_allow_values_from_model(true);
-    Vector<ByteString> layouts = {
+    // ItemListModel keeps a reference to this container, so it must outlive
+    // the combo box. A local vector here left the model dangling and crashed
+    // the application when the drop-down opened.
+    m_keyboard_layouts = {
         "us"sv, "gb"sv, "de"sv, "fr"sv, "es"sv, "it"sv, "pt"sv, "nl"sv, "se"sv, "no"sv,
         "dk"sv, "fi"sv, "pl"sv, "cz"sv, "ru"sv, "tr"sv, "br"sv, "jp"sv,
     };
-    m_keyboard_combo->set_model(*GUI::ItemListModel<ByteString>::create(layouts));
+    m_keyboard_combo->set_model(*GUI::ItemListModel<ByteString>::create(m_keyboard_layouts));
     m_keyboard_combo->set_text("us"sv);
 
     auto& rtc_label = page.add<GUI::Label>("Hardware clock:"_string);
@@ -880,16 +883,18 @@ void MainWindow::refresh_devices()
     m_probe_error = probe.error;
 
     m_device_paths.clear();
-    Vector<ByteString> labels;
+    // The model keeps a reference to the container, so the labels live on the
+    // window rather than in this function.
+    m_device_labels.clear();
     for (auto const& disk : m_disks) {
         m_device_paths.append(disk.path);
         auto model = disk.model.is_empty() ? "Unknown device"sv : disk.model.view();
-        labels.append(ByteString::formatted("{}  -  {}  -  {}", disk.path, size_string(disk.size_bytes), model));
+        m_device_labels.append(ByteString::formatted("{}  -  {}  -  {}", disk.path, size_string(disk.size_bytes), model));
     }
 
     m_updating_device_combo = true;
     if (m_device_combo) {
-        m_device_combo->set_model(*GUI::ItemListModel<ByteString>::create(labels));
+        m_device_combo->set_model(*GUI::ItemListModel<ByteString>::create(m_device_labels));
         size_t selection = 0;
         for (size_t index = 0; index < m_device_paths.size(); ++index) {
             if (m_device_paths[index] == selected_path) {
