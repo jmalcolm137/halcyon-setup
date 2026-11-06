@@ -701,6 +701,9 @@ private:
             return false;
         }
 
+        // run() expects the program name as argument 0; the branches above
+        // built only the flags and the device path.
+        arguments.insert(0, program);
         arguments.append(path);
         return run(arguments, ByteString::formatted("Formatting {}", path));
     }
