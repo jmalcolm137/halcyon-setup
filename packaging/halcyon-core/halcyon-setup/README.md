@@ -19,10 +19,12 @@ curl -L -o /tmp/halcyon-setup.tar.gz \
 sha256sum /tmp/halcyon-setup.tar.gz
 ```
 
-The r9 recipe carries nine patches so the live ISO gets the compositor-socket
+The r10 recipe carries ten patches so the live ISO gets the compositor-socket
 fallback, the Mounts-step validation fix, the combo-box lifetime/window size
-fixes, the Desktop step/required-package/PATH fixes, the format argv fix, and
-the live kernel copy without waiting for a source release:
+fixes, the Desktop step/required-package/PATH fixes, the format argv fix, the
+live kernel copy, the Limine stage 3/scroll fixes, the Disk-page refresh, and
+the ownership/setuid/accounts/SDDM-login fixes without waiting for a source
+release:
 
 - `patches/0001-resolve-sde-wayland-socket.patch`
 - `patches/0002-scope-mount-validation.patch`
@@ -33,6 +35,7 @@ the live kernel copy without waiting for a source release:
 - `patches/0007-desktop-launcher.patch`
 - `patches/0008-simple-wrapper.patch`
 - `patches/0009-stage3-scroll.patch`
+- `patches/0010-disk-refresh-and-install-fixes.patch`
 
 Drop them when `_commit` is bumped past the changes.
 
