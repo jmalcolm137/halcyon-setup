@@ -1636,8 +1636,16 @@ void MainWindow::poll_install()
         m_log_text = ByteString::formatted("{}{}", m_log_text, state.log[index]);
     }
     m_last_log_count = state.log.size();
-    if (!m_log_text.is_empty())
+    if (!m_log_text.is_empty()) {
         m_log_view->set_text(m_log_text.view());
+        // set_text() resets the cursor to the first line; follow the most
+        // recent install output instead of leaving the view at the top.
+        auto line_count = m_log_view->document().line_count();
+        if (line_count > 0) {
+            m_log_view->set_cursor(line_count - 1, 0);
+            m_log_view->scroll_cursor_into_view();
+        }
+    }
 
     m_progress_bar->set_value(state.percent);
     if (!state.status.is_empty())

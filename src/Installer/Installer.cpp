@@ -1141,6 +1141,25 @@ private:
                 return false;
             }
         } else {
+            // Limine's BIOS stage 1/2 loader looks for stage 3
+            // (limine-bios.sys) in /boot, /boot/limine, /limine or /. The
+            // package does not install it onto the target boot partition, so
+            // copy it before bios-install. Without this the installed system
+            // reports "Stage 3 file not found".
+            auto source = ByteString::formatted("{}/usr/share/limine/limine-bios.sys", m_target);
+            auto destination_dir = ByteString::formatted("{}/boot/limine", m_target);
+            make_path(destination_dir);
+            if (access(source.characters(), R_OK) != 0) {
+                m_failed = true;
+                m_error = "Limine BIOS stage 3 (limine-bios.sys) was not found in /usr/share/limine."sv;
+                return false;
+            }
+            if (!copy_file(source, ByteString::formatted("{}/limine-bios.sys", destination_dir))) {
+                m_failed = true;
+                m_error = "Could not copy limine-bios.sys into /boot/limine."sv;
+                return false;
+            }
+            log("Installed Limine BIOS stage 3"sv);
             if (!run({ "chimera-chroot"sv, m_target, "limine"sv, "bios-install"sv, m_config.target_device }, "Installing Limine to the disk"sv, {}, 120))
                 return false;
         }

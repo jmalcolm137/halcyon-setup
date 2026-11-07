@@ -1,0 +1,52 @@
+diff --git a/src/Installer/Installer.cpp b/src/Installer/Installer.cpp
+index 2a9e74e..df72338 100644
+--- a/src/Installer/Installer.cpp
++++ b/src/Installer/Installer.cpp
+@@ -1141,6 +1141,25 @@ private:
+                 return false;
+             }
+         } else {
++            // Limine's BIOS stage 1/2 loader looks for stage 3
++            // (limine-bios.sys) in /boot, /boot/limine, /limine or /. The
++            // package does not install it onto the target boot partition, so
++            // copy it before bios-install. Without this the installed system
++            // reports "Stage 3 file not found".
++            auto source = ByteString::formatted("{}/usr/share/limine/limine-bios.sys", m_target);
++            auto destination_dir = ByteString::formatted("{}/boot/limine", m_target);
++            make_path(destination_dir);
++            if (access(source.characters(), R_OK) != 0) {
++                m_failed = true;
++                m_error = "Limine BIOS stage 3 (limine-bios.sys) was not found in /usr/share/limine."sv;
++                return false;
++            }
++            if (!copy_file(source, ByteString::formatted("{}/limine-bios.sys", destination_dir))) {
++                m_failed = true;
++                m_error = "Could not copy limine-bios.sys into /boot/limine."sv;
++                return false;
++            }
++            log("Installed Limine BIOS stage 3"sv);
+             if (!run({ "chimera-chroot"sv, m_target, "limine"sv, "bios-install"sv, m_config.target_device }, "Installing Limine to the disk"sv, {}, 120))
+                 return false;
+         }
+diff --git a/src/UI/MainWindow.cpp b/src/UI/MainWindow.cpp
+index f299636..6744b30 100644
+--- a/src/UI/MainWindow.cpp
++++ b/src/UI/MainWindow.cpp
+@@ -1636,8 +1636,16 @@ void MainWindow::poll_install()
+         m_log_text = ByteString::formatted("{}{}", m_log_text, state.log[index]);
+     }
+     m_last_log_count = state.log.size();
+-    if (!m_log_text.is_empty())
++    if (!m_log_text.is_empty()) {
+         m_log_view->set_text(m_log_text.view());
++        // set_text() resets the cursor to the first line; follow the most
++        // recent install output instead of leaving the view at the top.
++        auto line_count = m_log_view->document().line_count();
++        if (line_count > 0) {
++            m_log_view->set_cursor(line_count - 1, 0);
++            m_log_view->scroll_cursor_into_view();
++        }
++    }
+ 
+     m_progress_bar->set_value(state.percent);
+     if (!state.status.is_empty())
