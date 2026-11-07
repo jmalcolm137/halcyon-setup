@@ -1,0 +1,46 @@
+diff --git a/src/Installer/Installer.cpp b/src/Installer/Installer.cpp
+index f0adead..dadb2ce 100644
+--- a/src/Installer/Installer.cpp
++++ b/src/Installer/Installer.cpp
+@@ -877,9 +877,9 @@ private:
+     {
+         advance(55, "Installing required system tools"sv);
+         return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
+-                       "uutils-coreutils"sv, "bcachefs-tools"sv, "ckms"sv, "linux-stable"sv,
+-                       "linux-stable-bcachefs-bin"sv },
+-            "Installing uutils, bcachefs tools, ckms, the kernel and the bcachefs module"sv, {}, 600);
++                       "uutils-coreutils"sv, "bcachefs-tools"sv, "ckms"sv, "git"sv,
++                       "linux-stable"sv, "linux-stable-bcachefs-bin"sv },
++            "Installing uutils, bcachefs tools, ckms, git, the kernel and the bcachefs module"sv, {}, 600);
+     }
+ 
+     bool copy_live_boot_files()
+@@ -1068,6 +1068,28 @@ private:
+                     ByteString::formatted("{}:{}", user.username, user.username),
+                     ByteString::formatted("/home/{}", user.username) },
+                 ByteString::formatted("Fixing ownership of /home/{}", user.username), {}, 300, true);
++
++            // Give every account the SDE 3D models in the directory the viewer
++            // uses by default.
++            auto models_source = ByteString { "/usr/lib/sde/share/res/3D Models"sv };
++            if (access(models_source.characters(), R_OK) != 0)
++                models_source = ByteString { "/usr/lib/sde/share/res/3DModels"sv };
++            if (access(models_source.characters(), R_OK) == 0) {
++                auto models_destination = ByteString::formatted("{}/home/{}/Documents/3DModels", m_target, user.username);
++                make_path(models_destination);
++                for (auto const& entry : list_directory(models_source)) {
++                    auto source_path = ByteString::formatted("{}/{}", models_source, entry);
++                    auto destination_path = ByteString::formatted("{}/{}", models_destination, entry);
++                    copy_file(source_path, destination_path);
++                }
++                run({ "chimera-chroot"sv, m_target, "chown"sv, "-R"sv,
++                        ByteString::formatted("{}:{}", user.username, user.username),
++                        ByteString::formatted("/home/{}/Documents/3DModels", user.username) },
++                    ByteString::formatted("Setting ownership of the 3D models for {}", user.username), {}, 60, true);
++                log(ByteString::formatted("Copied the SDE 3D models for {}", user.username));
++            } else {
++                log("warning: no SDE 3D models were found; skipping the per-user copy"sv);
++            }
+         }
+ 
+         advance(68, "Setting passwords"sv);
