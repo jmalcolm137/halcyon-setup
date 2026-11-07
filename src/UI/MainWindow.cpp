@@ -1276,6 +1276,10 @@ bool MainWindow::validate_current_page()
         return true;
 
     case Step::Accounts: {
+        if (m_users.is_empty()) {
+            show_warning(*m_window, "Create at least one user account. Press Add User to add one."sv);
+            return false;
+        }
         if (!m_root_password || m_root_password->text().is_empty()) {
             show_warning(*m_window, "Enter a root password. The system cannot be administered without one."sv);
             return false;

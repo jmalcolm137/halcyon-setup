@@ -288,6 +288,9 @@ ByteString validate_config(InstallConfig const& config, Vector<DiskInfo> const& 
     if (!valid_password(config.root_password))
         return "Enter a root password. It cannot be empty or contain a newline or colon."sv;
 
+    if (config.users.is_empty())
+        return "Create at least one user account. Press Add User on the Accounts page."sv;
+
     Vector<ByteString> usernames;
     for (auto const& user : config.users) {
         if (!valid_username(user.username))
