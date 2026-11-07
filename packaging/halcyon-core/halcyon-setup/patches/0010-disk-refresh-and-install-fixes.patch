@@ -1,0 +1,213 @@
+diff --git a/src/Installer/Config.cpp b/src/Installer/Config.cpp
+index 1920bc7..1eae1af 100644
+--- a/src/Installer/Config.cpp
++++ b/src/Installer/Config.cpp
+@@ -288,6 +288,9 @@ ByteString validate_config(InstallConfig const& config, Vector<DiskInfo> const&
+     if (!valid_password(config.root_password))
+         return "Enter a root password. It cannot be empty or contain a newline or colon."sv;
+ 
++    if (config.users.is_empty())
++        return "Create at least one user account. Press Add User on the Accounts page."sv;
++
+     Vector<ByteString> usernames;
+     for (auto const& user : config.users) {
+         if (!valid_username(user.username))
+diff --git a/src/Installer/Installer.cpp b/src/Installer/Installer.cpp
+index df72338..f0adead 100644
+--- a/src/Installer/Installer.cpp
++++ b/src/Installer/Installer.cpp
+@@ -486,7 +486,7 @@ private:
+     {
+         advance(1, "Checking the installation environment"sv);
+ 
+-        for (auto const& program : { "lsblk"sv, "sfdisk"sv, "wipefs"sv, "partprobe"sv, "udevadm"sv, "mount"sv, "umount"sv, "chimera-bootstrap"sv, "chimera-chroot"sv, "chpasswd"sv, "useradd"sv, "usermod"sv, "genfstab"sv, "blkid"sv }) {
++        for (auto const& program : { "lsblk"sv, "sfdisk"sv, "wipefs"sv, "partprobe"sv, "udevadm"sv, "mount"sv, "umount"sv, "chown"sv, "chmod"sv, "chimera-bootstrap"sv, "chimera-chroot"sv, "chpasswd"sv, "useradd"sv, "usermod"sv, "genfstab"sv, "blkid"sv }) {
+             if (!command_exists(program)) {
+                 m_failed = true;
+                 m_error = ByteString::formatted("Required program '{}' was not found.", program);
+@@ -840,6 +840,23 @@ private:
+         if (!run({ "chimera-bootstrap"sv, "-l"sv, "-f"sv, m_target }, "Installing the live system"sv, {}, 3600))
+             return false;
+ 
++        // The live root filesystem is built with /, /etc and /usr owned by the
++        // live build user. chimera-bootstrap preserves that ownership, which
++        // makes systemd-tmpfiles refuse to create /run/dbus at boot; dbus then
++        // fails and the desktop session cannot start. Restore root ownership.
++        run({ "chown"sv, "0:0"sv, m_target }, "Fixing the ownership of the target root"sv, {}, 60);
++        run({ "chown"sv, "-R"sv, "0:0"sv,
++                ByteString::formatted("{}/etc", m_target),
++                ByteString::formatted("{}/usr", m_target) },
++            "Fixing the ownership of /etc and /usr"sv, {}, 600);
++
++        // The live image ships ping with a file capability (cap_net_raw+p).
++        // File capabilities are not preserved when the live filesystem is
++        // copied onto the target, so set the traditional setuid bit instead.
++        auto ping = ByteString::formatted("{}/usr/bin/ping", m_target);
++        if (access(ping.characters(), F_OK) == 0)
++            chmod(ping.characters(), 04755);
++
+         if (m_config.remove_base_live) {
+             advance(52, "Removing live-session packages"sv);
+             ensure_bootloader_packages_in_world();
+@@ -890,9 +907,31 @@ private:
+     {
+         advance(57, "Configuring the desktop environment"sv);
+         if (m_config.install_desktop) {
+-            return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
++            if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
+                            "serenity-desktop"sv, "sddm"sv, "sddm-default-cage"sv, "sddm-theme-none"sv },
+-                "Installing the Serenity Desktop Environment"sv, {}, 900);
++                    "Installing the Serenity Desktop Environment"sv, {}, 900))
++                return false;
++
++            // sddm-theme-none means there is no greeter theme, so the greeter
++            // exits immediately. Log the first user in automatically and start
++            // the SDE session, matching the live image.
++            enable_service("sddm"sv);
++            if (!m_config.users.is_empty()) {
++                auto config_dir = ByteString::formatted("{}/etc/sddm.conf.d", m_target);
++                make_path(config_dir);
++                auto autologin = ByteString::formatted(
++                    "[Autologin]\n"
++                    "User={}\n"
++                    "Session=sde\n",
++                    m_config.users[0].username);
++                if (!write_file(ByteString::formatted("{}/autologin.conf", config_dir), autologin)) {
++                    m_failed = true;
++                    m_error = "Could not configure automatic login for the desktop."sv;
++                    return false;
++                }
++                log(ByteString::formatted("Configured automatic login for {}", m_config.users[0].username));
++            }
++            return true;
+         }
+ 
+         // Keep the required tools above, but leave a console-only system.
+@@ -990,6 +1029,14 @@ private:
+         // copy them into the installed system's skeleton for new users.
+         unlink(ByteString::formatted("{}/etc/skel/Desktop/HalcyonSetup.desktop", m_target).characters());
+         unlink(ByteString::formatted("{}/etc/skel/Desktop/Install Halcyon Linux", m_target).characters());
++        unlink(ByteString::formatted("{}/etc/skel/.config/autostart/HalcyonSetup.desktop", m_target).characters());
++        // The live test image can carry an automatic root console (ttyS0) and
++        // an automatic installer start. Never copy those into an installed
++        // system.
++        unlink(ByteString::formatted("{}/etc/dinit.d/boot.d/serial-getty", m_target).characters());
++        unlink(ByteString::formatted("{}/etc/dinit.d/serial-getty", m_target).characters());
++        unlink(ByteString::formatted("{}/etc/dinit.d/boot.d/halcyon-live-wizard", m_target).characters());
++        unlink(ByteString::formatted("{}/etc/dinit.d/halcyon-live-wizard", m_target).characters());
+ 
+         advance(64, "Creating user accounts"sv);
+         for (auto const& user : m_config.users) {
+@@ -1013,6 +1060,14 @@ private:
+             arguments.append(group_list.to_byte_string());
+             arguments.append(user.username);
+             run(arguments, ByteString::formatted("Adding {} to additional groups", user.username), {}, 60, true);
++
++            // useradd copies the skeleton preserving its ownership. The live
++            // skeleton is not owned by the new user, so make the home
++            // directory belong to the account that owns it.
++            run({ "chimera-chroot"sv, m_target, "chown"sv, "-R"sv,
++                    ByteString::formatted("{}:{}", user.username, user.username),
++                    ByteString::formatted("/home/{}", user.username) },
++                ByteString::formatted("Fixing ownership of /home/{}", user.username), {}, 300, true);
+         }
+ 
+         advance(68, "Setting passwords"sv);
+@@ -1030,6 +1085,9 @@ private:
+                 return false;
+             }
+         }
++        // chpasswd creates /etc/shadow with the process umask (0644). It has to
++        // stay unreadable for everyone but root.
++        chmod(ByteString::formatted("{}/etc/shadow", m_target).characters(), 0600);
+ 
+         advance(71, "Enabling services"sv);
+         if (m_config.enable_syslog)
+@@ -1041,6 +1099,7 @@ private:
+                 enable_service("chronyd"sv);
+         }
+ 
++        restore_setuid_bits();
+         return true;
+     }
+ 
+@@ -1083,6 +1142,51 @@ private:
+         return false;
+     }
+ 
++    void restore_setuid_bits()
++    {
++        // Package metadata marks these files setuid root. chown(2) clears the
++        // setuid bit when it changes ownership, so after fixing the target's
++        // ownership we have to put the bits back.
++        static constexpr StringView programs[] = {
++            "/usr/lib/polkit-1/polkit-agent-helper-1"sv,
++            "/usr/bin/pkexec"sv,
++            "/usr/bin/mount.nfs"sv,
++            "/usr/bin/unix_chkpwd"sv,
++            "/usr/bin/ksu"sv,
++            "/usr/bin/crontab"sv,
++            "/usr/bin/fusermount3"sv,
++            "/usr/lib/ssh-keysign"sv,
++            "/usr/lib/libgtop_server2"sv,
++            "/usr/bin/mount"sv,
++            "/usr/bin/umount"sv,
++            "/usr/lib/qemu-bridge-helper"sv,
++            "/usr/lib/dbus-daemon-launch-helper"sv,
++            "/usr/bin/doas"sv,
++            "/usr/bin/chage"sv,
++            "/usr/bin/chfn"sv,
++            "/usr/bin/chsh"sv,
++            "/usr/bin/expiry"sv,
++            "/usr/bin/gpasswd"sv,
++            "/usr/bin/newgidmap"sv,
++            "/usr/bin/newuidmap"sv,
++            "/usr/bin/newgrp"sv,
++            "/usr/bin/passwd"sv,
++            "/usr/bin/sg"sv,
++            "/usr/bin/su"sv,
++            "/usr/lib/chromium/chrome-sandbox"sv,
++            "/usr/lib/Xorg.wrap"sv,
++            "/usr/bin/firejail"sv,
++            "/usr/bin/wlock"sv,
++            "/usr/lib/lxc/lxc-user-nic"sv,
++        };
++        for (auto const& program : programs) {
++            auto path = ByteString::formatted("{}{}", m_target, program);
++            if (access(path.characters(), F_OK) == 0)
++                chmod(path.characters(), 04755);
++        }
++        log("Restored setuid permissions"sv);
++    }
++
+     bool create_initramfs()
+     {
+         advance(74, "Creating the initial ramdisk"sv);
+diff --git a/src/UI/MainWindow.cpp b/src/UI/MainWindow.cpp
+index 6744b30..7947510 100644
+--- a/src/UI/MainWindow.cpp
++++ b/src/UI/MainWindow.cpp
+@@ -1276,6 +1276,10 @@ bool MainWindow::validate_current_page()
+         return true;
+ 
+     case Step::Accounts: {
++        if (m_users.is_empty()) {
++            show_warning(*m_window, "Create at least one user account. Press Add User to add one."sv);
++            return false;
++        }
+         if (!m_root_password || m_root_password->text().is_empty()) {
+             show_warning(*m_window, "Enter a root password. The system cannot be administered without one."sv);
+             return false;
+@@ -1337,6 +1341,12 @@ void MainWindow::set_page(Step step)
+         m_sidebar->set_current(sidebar_step);
+     }
+ 
++    // The live session can start before a hot-plugged disk is enumerated.
++    // Try once more when the Disk page is actually reached; the page also has
++    // an explicit Refresh disks button.
++    if (step == Step::Disk && m_disks.is_empty())
++        refresh_devices();
++
+     if (step == Step::Mounts)
+         update_mount_table();
+     if (step == Step::Timezone)

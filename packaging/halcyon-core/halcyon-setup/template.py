@@ -1,12 +1,19 @@
 pkgname = "halcyon-setup"
 pkgver = "0.1.0"
-pkgrel = 9
+pkgrel = 10
 pkgdesc = "Windows 95-style installation wizard for Halcyon Linux"
 license = "BSD-2-Clause"
 url = "https://github.com/jmalcolm137/halcyon-setup"
 
 # Update this to the release commit when publishing the package.
-_commit = "REPLACE_WITH_RELEASE_COMMIT"
+#
+# r10 carries ten patches so the live ISO gets the SDE Wayland socket
+# fallback, the Mounts-step validation fix, the combo-box lifetime/window size
+# fixes, the Desktop step/required-package/PATH fixes, the format argv fix, the
+# live kernel copy, the Limine stage 3/scroll fixes, the Disk-page refresh, and
+# the ownership/setuid/accounts/SDDM-login fixes. Drop them when _commit is
+# bumped past the source changes.
+_commit = "631b8595a97817fe1e6db176b791da2156b416b8"
 
 hostmakedepends = ["gmake"]
 makedepends = [
@@ -54,7 +61,7 @@ match self.profile.arch:
 options = ["!check", "!cross", "etcfiles"]
 
 source = f"{url}/archive/{_commit}.tar.gz"
-sha256 = ["0000000000000000000000000000000000000000000000000000000000000000"]
+sha256 = ["49f0a3c91e445cf87dd1f8183197db47f660198a696f1a6b5d80914739727e60"]
 
 
 def build(self):
@@ -93,7 +100,7 @@ def install(self):
         "res/HalcyonSetup.desktop", "usr/share/applications", mode=0o644
     )
     self.install_file(
-        "res/desktop-launcher",
+        self.files_path / "desktop-launcher",
         "etc/skel/Desktop",
         name="Install Halcyon Linux",
         mode=0o755,
