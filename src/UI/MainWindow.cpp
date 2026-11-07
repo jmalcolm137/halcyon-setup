@@ -1337,6 +1337,12 @@ void MainWindow::set_page(Step step)
         m_sidebar->set_current(sidebar_step);
     }
 
+    // The live session can start before a hot-plugged disk is enumerated.
+    // Try once more when the Disk page is actually reached; the page also has
+    // an explicit Refresh disks button.
+    if (step == Step::Disk && m_disks.is_empty())
+        refresh_devices();
+
     if (step == Step::Mounts)
         update_mount_table();
     if (step == Step::Timezone)
