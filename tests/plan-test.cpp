@@ -66,7 +66,16 @@ int main()
     config.timezone = "Europe/Prague"sv;
     config.root_password = "correct horse battery staple"sv;
     config.bootloader = Bootloader::Limine;
-    check(validate_config(config, disks).is_empty(), "default UEFI configuration validates");
+    UserAccount user;
+    user.username = "halcyon"sv;
+    user.password = "correct horse battery staple"sv;
+    config.users.append(user);
+    {
+        auto error = validate_config(config, disks);
+        if (!error.is_empty())
+            fprintf(stderr, "validation error: %s\n", error.characters());
+        check(error.is_empty(), "default UEFI configuration validates");
+    }
 
     // The Mounts page runs before System and Accounts. Its storage-only check
     // must not reject the not-yet-entered hostname, time zone or root password.
