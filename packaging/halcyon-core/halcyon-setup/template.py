@@ -55,11 +55,9 @@ match self.profile.arch:
             "grub-x86_64-efi",
             "limine",
             "firmware-apple",
-            "t2fanrd",
-            "tiny-dfr",
         ]
     case "aarch64":
-        depends += ["grub-arm64-efi", "limine", "firmware-apple", "tiny-dfr"]
+        depends += ["grub-arm64-efi", "limine", "firmware-apple"]
     case "riscv64":
         depends += ["grub-riscv64-efi", "limine"]
     case "ppc" | "ppc64" | "ppc64le":
