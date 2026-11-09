@@ -165,6 +165,8 @@ private:
     RefPtr<GUI::CheckBox> m_enable_syslog_checkbox;
     RefPtr<GUI::CheckBox> m_enable_networkmanager_checkbox;
     RefPtr<GUI::CheckBox> m_enable_ntp_checkbox;
+    RefPtr<GUI::CheckBox> m_enable_t2fanrd_checkbox;
+    RefPtr<GUI::CheckBox> m_enable_tiny_dfr_checkbox;
 
     RefPtr<GUI::TextEditor> m_summary_view;
     RefPtr<GUI::CheckBox> m_final_confirm;

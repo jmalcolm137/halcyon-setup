@@ -811,6 +811,34 @@ private:
         return true;
     }
 
+    void ensure_halcyon_packages()
+    {
+        if (machine_architecture() != "x86_64"sv)
+            return;
+
+        // Keep the running Halcyon kernel and its out-of-tree modules in the
+        // world file before base-live is removed. The live image already has
+        // these; apk add makes them explicit in the installed system.
+        Vector<ByteString> keep = {
+            "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
+            "linux-halcyon"sv,
+            "linux-halcyon-bcachefs-bin"sv,
+            "linux-halcyon-broadcom-wl-bin"sv,
+            "firmware-apple"sv,
+        };
+        run(move(keep), "Keeping the Halcyon kernel and Apple T2 firmware"sv, {}, 600, true);
+
+        if (m_config.enable_t2fanrd)
+            run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv, "t2fanrd"sv }, "Keeping T2 fan control"sv, {}, 300, true);
+        else
+            run({ "chimera-chroot"sv, m_target, "apk"sv, "del"sv, "t2fanrd"sv }, "Removing T2 fan control"sv, {}, 300, true);
+
+        if (m_config.enable_tiny_dfr)
+            run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv, "tiny-dfr"sv }, "Keeping Touch Bar support"sv, {}, 300, true);
+        else
+            run({ "chimera-chroot"sv, m_target, "apk"sv, "del"sv, "tiny-dfr"sv }, "Removing Touch Bar support"sv, {}, 300, true);
+    }
+
     void ensure_bootloader_packages_in_world()
     {
         // base-live pulls in the offline bootloaders. Keep the selected one in
@@ -856,6 +884,8 @@ private:
         auto ping = ByteString::formatted("{}/usr/bin/ping", m_target);
         if (access(ping.characters(), F_OK) == 0)
             chmod(ping.characters(), 04755);
+
+        ensure_halcyon_packages();
 
         if (m_config.remove_base_live) {
             advance(52, "Removing live-session packages"sv);

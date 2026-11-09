@@ -59,6 +59,8 @@ struct InstallConfig {
     bool enable_syslog { true };
     bool enable_networkmanager { true };
     bool enable_ntp { true };
+    bool enable_t2fanrd { true };
+    bool enable_tiny_dfr { true };
 
     ByteString root_password;
     Vector<UserAccount> users;

@@ -787,8 +787,13 @@ void MainWindow::build_options_page()
     m_enable_networkmanager_checkbox->set_checked(true);
     m_enable_ntp_checkbox = page.add<GUI::CheckBox>("Enable NTP time synchronization (chrony)"_string);
     m_enable_ntp_checkbox->set_checked(true);
+    m_enable_t2fanrd_checkbox = page.add<GUI::CheckBox>("Install and enable Apple T2 fan control (t2fanrd)"_string);
+    m_enable_t2fanrd_checkbox->set_checked(true);
+    m_enable_tiny_dfr_checkbox = page.add<GUI::CheckBox>("Install and enable Apple Touch Bar support (tiny-dfr)"_string);
+    m_enable_tiny_dfr_checkbox->set_checked(true);
 
     auto& note = page.add<GUI::Label>(
+        "The T2 options are harmless on non-T2 hardware; their services detect whether the Apple hardware is present. "
         "Updating from the network requires a working connection. Local installation from the live media does not "
         "need a network for the base system."_string);
     note.set_text_wrapping(Gfx::TextWrapping::Wrap);
@@ -1167,6 +1172,8 @@ void MainWindow::update_summary()
     builder.appendff("  Enable syslog-ng: {}\n", config.enable_syslog ? "yes"sv : "no"sv);
     builder.appendff("  Enable NetworkManager: {}\n", config.enable_networkmanager ? "yes"sv : "no"sv);
     builder.appendff("  Enable NTP: {}\n", config.enable_ntp ? "yes"sv : "no"sv);
+    builder.appendff("  Apple T2 fan control: {}\n", config.enable_t2fanrd ? "yes"sv : "no"sv);
+    builder.appendff("  Apple Touch Bar: {}\n", config.enable_tiny_dfr ? "yes"sv : "no"sv);
 
     auto summary = builder.to_byte_string();
     m_summary_view->set_text(summary.view());
@@ -1211,6 +1218,8 @@ InstallConfig MainWindow::build_config() const
     config.enable_syslog = !m_enable_syslog_checkbox || m_enable_syslog_checkbox->is_checked();
     config.enable_networkmanager = !m_enable_networkmanager_checkbox || m_enable_networkmanager_checkbox->is_checked();
     config.enable_ntp = !m_enable_ntp_checkbox || m_enable_ntp_checkbox->is_checked();
+    config.enable_t2fanrd = !m_enable_t2fanrd_checkbox || m_enable_t2fanrd_checkbox->is_checked();
+    config.enable_tiny_dfr = !m_enable_tiny_dfr_checkbox || m_enable_tiny_dfr_checkbox->is_checked();
 
     if (m_root_password)
         config.root_password = m_root_password->text();

@@ -39,6 +39,9 @@ existing partition layout with mount points chosen by the user.
   time zone, hardware-clock mode, keyboard layout, fstab generation,
   initramfs creation with the bcachefs module, `base-live` removal, optional
   package updates, and enabling syslog-ng, NetworkManager and chrony.
+- **Apple T2 support:** the x86_64 image uses `linux-halcyon`, keeps the
+  Apple T2 Wi-Fi firmware, and offers optional `t2fanrd` fan control and
+  `tiny-dfr` Touch Bar support in the Options page.
 - **Installation log** with progress, and a finish page telling the user to
   remove the media before rebooting.
 
