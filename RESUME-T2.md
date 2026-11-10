@@ -56,9 +56,21 @@ cd /home/jmalcolm/Projects/cports
 ./cbuild -b bldroot-halcyon -j4 pkg halcyon-core/linux-halcyon
 ```
 
-Log: `/tmp/cbuild-linux-halcyon2.log`
+Log: `/tmp/cbuild-linux-halcyon-dirty.log`
 
-This may need to be restarted after power loss. cbuild is incremental.
+A hardlink snapshot of the long kernel build directory is kept at:
+
+`/home/jmalcolm/Projects/cports/linux-halcyon-builddir-snapshot`
+
+If a restart leaves the cbuild build directory empty or missing, restore it
+before running the `-D` build again:
+
+```
+cd /home/jmalcolm/Projects/cports
+rm -rf bldroot-halcyon/builddir/linux-halcyon-7.3.1
+cp -al linux-halcyon-builddir-snapshot bldroot-halcyon/builddir/linux-halcyon-7.3.1
+./cbuild -b bldroot-halcyon -D -j8 pkg halcyon-core/linux-halcyon
+```
 
 ## Next commands
 
