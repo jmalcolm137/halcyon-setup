@@ -76,7 +76,7 @@ EOF
     echo "  $page: window presented and frame captured"
 }
 
-for page in welcome disk mounts timezone accounts options summary; do
+for page in welcome disk mounts timezone accounts options summary finished; do
     run_page "$page"
 done
 

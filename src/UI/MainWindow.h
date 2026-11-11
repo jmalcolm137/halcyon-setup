@@ -65,6 +65,7 @@ private:
     void build_summary_page();
     void build_progress_page();
     void build_finished_page();
+    void restart_into_installation();
 
     void refresh_devices();
     void on_device_changed();
@@ -196,6 +197,7 @@ private:
 
     RefPtr<GUI::Label> m_finished_title;
     RefPtr<GUI::Label> m_finished_text;
+    RefPtr<GUI::Button> m_restart_button;
     bool m_finished_success { false };
     ByteString m_finished_message;
 };

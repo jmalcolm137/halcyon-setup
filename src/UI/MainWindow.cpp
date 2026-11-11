@@ -888,7 +888,41 @@ void MainWindow::build_finished_page()
     note.set_foreground_role(Gfx::ColorRole::DisabledText);
     note.set_fixed_height(52);
 
+    m_restart_button = page.add<GUI::Button>("Eject and restart"_string);
+    m_restart_button->set_fixed_width(150);
+    m_restart_button->set_visible(false);
+    m_restart_button->on_click = [this](unsigned) {
+        restart_into_installation();
+    };
+
     page.add_spacer();
+}
+
+void MainWindow::restart_into_installation()
+{
+    if (!m_finished_success)
+        return;
+
+    auto result = GUI::MessageBox::show(
+        m_window,
+        "The installation is complete. Eject the installation media and restart into Halcyon Linux?"sv,
+        "Restart"sv,
+        GUI::MessageBox::Type::Question,
+        GUI::MessageBox::InputType::YesNo);
+    if (result != GUI::Dialog::ExecResult::Yes)
+        return;
+
+    // Best effort: release any optical media first so the machine cannot boot
+    // the live image again. Ignore failures; some live media are USB sticks.
+    run_command("eject"sv, { "-a"sv }, {}, 15);
+
+    auto reboot = run_command("reboot"sv, {}, {}, 30);
+    if (!reboot.ok()) {
+        show_warning(
+            *m_window,
+            "Halcyon Linux could not restart the machine automatically. "
+            "Remove the installation media and restart it manually."sv);
+    }
 }
 
 DiskInfo const* MainWindow::selected_disk() const
@@ -1399,7 +1433,7 @@ void MainWindow::set_page(Step step)
         hint = "Installation is in progress. Do not remove the installation media."sv;
         break;
     case Step::Finished:
-        hint = "Remove the installation media, then restart the computer."sv;
+        hint = "Press \"Eject and restart\" to boot into the new system."sv;
         break;
     case Step::__Count:
         break;
@@ -1591,6 +1625,8 @@ void MainWindow::start_install()
             m_finished_title->set_text("Setup complete"_string);
         if (m_finished_text)
             m_finished_text->set_text("Demo mode is active. The wizard did not write to any disk."_string);
+        if (m_restart_button)
+            m_restart_button->set_visible(false);
         set_page(Step::Finished);
         return;
     }
@@ -1688,13 +1724,17 @@ void MainWindow::poll_install()
     if (m_finished_text) {
         if (state.success) {
             m_finished_text->set_text(MUST(String::formatted(
-                "Halcyon Linux has been installed successfully.\n\nRemove the installation media and restart the computer. "
-                "The system will boot with {} into the user account you created.", bootloader_name(build_config().bootloader))));
+                "Halcyon Linux has been installed successfully.\n\n"
+                "Press \"Eject and restart\" to remove the installation media and boot into the new system. "
+                "The system will start with {} in the user account you created.", bootloader_name(build_config().bootloader))));
         } else {
             m_finished_text->set_text(MUST(String::formatted(
                 "The installation did not complete:\n\n{}\n\nReview the installation log, correct the problem, and try again.", state.message)));
         }
     }
+
+    if (m_restart_button)
+        m_restart_button->set_visible(state.success);
 
     set_page(Step::Finished);
 }
@@ -1735,6 +1775,16 @@ void MainWindow::show_page_for_testing(StringView name)
         set_page(Step::Options);
     else if (name == "summary"sv)
         set_page(Step::Summary);
+    else if (name == "finished"sv) {
+        m_finished_success = true;
+        if (m_finished_title)
+            m_finished_title->set_text("Setup complete"_string);
+        if (m_finished_text)
+            m_finished_text->set_text("Halcyon Linux has been installed successfully."_string);
+        if (m_restart_button)
+            m_restart_button->set_visible(true);
+        set_page(Step::Finished);
+    }
 }
 
 }
