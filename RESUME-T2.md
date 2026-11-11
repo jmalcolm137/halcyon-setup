@@ -47,78 +47,61 @@ This file exists so work can resume after the power loss.
   the executable `Install Halcyon Linux` launcher instead.
 - `halcyon/initramfs-tools/hooks/broadcom-wl` now adds both driver families.
 
-## Interrupted work
+## Build progress (2026-11-10)
 
-`linux-halcyon` was being built from its new `halcyon-core` location:
+All packages are built in `bldroot-halcyon`:
 
-```
-cd /home/jmalcolm/Projects/cports
-./cbuild -b bldroot-halcyon -j4 pkg halcyon-core/linux-halcyon
-```
+- `linux-halcyon-7.3.1-r0` (plus `-devel`, `-dinit`)
+- `linux-halcyon-bcachefs-bin-1.39.7.7.3.1-r0`
+- `linux-halcyon-broadcom-wl-bin-6.30.223.271.7.3.1-r0`
+- `broadcom-wl-6.30.223.271-r2`
+- `halcyon-setup-0.1.0-r13`
+- `firmware-apple`, `t2fanrd`, `tiny-dfr` (already present)
 
-Log: `/tmp/cbuild-linux-halcyon-dirty.log`
+The first ISO (`halcyon-linux-x86_64-LIVE-20261110-sde.iso`) was built and
+verified: `linux-halcyon`, both module packages, `firmware-apple`, `t2fanrd`,
+`tiny-dfr`, `wifi-select`, the init-top script and the dinit service are all
+present, and the initrd contains `wl.ko`, `brcmfmac.ko`, `brcmutil.ko`,
+`000-halcyon-wifi` and `wifi-select`.
 
-A hardlink snapshot of the long kernel build directory is kept at:
+Booting that ISO in QEMU found a dinit bug: `type = oneshot` is not valid and
+aborted the boot. It is fixed to `type = scripted` in
+`halcyon-core/broadcom-wl/files/halcyon-wifi` (pkgrel 2, cports `6cb17362c`).
+The ISO is being rebuilt with that fix.
 
-`/home/jmalcolm/Projects/cports/linux-halcyon-builddir-snapshot`
+## Gotchas found while building
 
-If a restart leaves the cbuild build directory empty or missing, restore it
-before running the `-D` build again:
-
-```
-cd /home/jmalcolm/Projects/cports
-rm -rf bldroot-halcyon/builddir/linux-halcyon-7.3.1
-cp -al linux-halcyon-builddir-snapshot bldroot-halcyon/builddir/linux-halcyon-7.3.1
-./cbuild -b bldroot-halcyon -D -j8 pkg halcyon-core/linux-halcyon
-```
+- `prepare-upgrade` resets `pkgrel` to 0; set it back after refreshing checksums.
+- `broadcom-wl` lint requires: `depends` before `pkgdesc`, `options` last with a
+  comment directly above it, and `dinit-chimera` in `makedepends` for the
+  `early-fs-local.target` service dependency.
+- `linux-halcyon-bcachefs-bin` must not install a license; the ckms source tree
+  has no `COPYING`.
+- cbuild gzips everything under `/usr/share/man`; `mklive.sh` now decompresses
+  `*.md.gz` so Serenity Help can read the manuals.
 
 ## Next commands
 
-1. Rebuild `linux-halcyon` if needed:
-
-```
-cd /home/jmalcolm/Projects/cports
-./cbuild -b bldroot-halcyon -j4 pkg halcyon-core/linux-halcyon
-```
-
-2. Build the new modules and modified broadcom-wl:
-
-```
-./cbuild -b bldroot-halcyon -j4 pkg halcyon-core/linux-halcyon-bcachefs-bin
-./cbuild -b bldroot-halcyon -j4 pkg halcyon-core/broadcom-wl
-./cbuild -b bldroot-halcyon -j4 pkg halcyon-core/linux-halcyon-broadcom-wl-bin
-```
-
-3. Build `halcyon-setup` from the new source commit:
-
-```
-./cbuild -b bldroot-halcyon -j4 pkg halcyon-core/halcyon-setup
-```
-
-The cports template currently points at
-`daceae5dd7d38d32992559db327f50415f3451e3`; the latest source is `62ceaaf`,
-but only tests/packaging changed after daceae5. Bump if desired.
-
-4. Ensure `firmware-apple`, `t2fanrd`, `tiny-dfr` packages are present and
-   indexed.
-
-5. Rebuild the ISO:
+1. Rebuild the ISO after the dinit fix:
 
 ```
 cd /home/jmalcolm/Projects/halcyon
 ./build-halcyon-iso.sh
 ```
 
-6. Verify the built rootfs:
-   - `linux-halcyon` installed
-   - `linux-halcyon-bcachefs-bin` and `linux-halcyon-broadcom-wl-bin`
-   - `firmware-apple`, `t2fanrd`, `tiny-dfr`
-   - `/usr/lib/halcyon/wifi-select`
-   - `/usr/share/initramfs-tools/scripts/init-top/000-halcyon-wifi`
-   - `/usr/lib/dinit.d/halcyon-wifi` and its boot.d link
-   - `/run/modprobe.d` selection in a booted image
+The stale `build-halcyon` directory is root-owned; remove it first with:
 
-7. Publish the next ISO release and update `SDE-BUILD-STATE.md`.
+```
+docker run --rm -v /home/jmalcolm/Projects/halcyon:/h alpine \
+    sh -c 'rm -rf /h/build-halcyon'
+```
+
+2. Boot the new ISO in QEMU and confirm the desktop starts and
+   `/var/log/halcyon-wifi.log` shows a non-T2 selection (this machine has no
+   T2, so it should blacklist `brcmfmac` and load `wl`, or skip both if the
+   hardware is absent).
+
+3. Publish the next ISO release and update `SDE-BUILD-STATE.md`.
 
 ## Notes
 
