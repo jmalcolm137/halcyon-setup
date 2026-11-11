@@ -47,33 +47,26 @@ This file exists so work can resume after the power loss.
   the executable `Install Halcyon Linux` launcher instead.
 - `halcyon/initramfs-tools/hooks/broadcom-wl` now adds both driver families.
 
-## Build progress (2026-11-10)
+## Status: complete (2026-11-11)
 
-All packages are built in `bldroot-halcyon`:
+All Apple T2 work is done and published.
 
-- `linux-halcyon-7.3.1-r0` (plus `-devel`, `-dinit`)
-- `linux-halcyon-bcachefs-bin-1.39.7.7.3.1-r0`
-- `linux-halcyon-broadcom-wl-bin-6.30.223.271.7.3.1-r0`
-- `broadcom-wl-6.30.223.271-r2`
-- `halcyon-setup-0.1.0-r13`
-- `firmware-apple`, `t2fanrd`, `tiny-dfr` (already present)
+- `cports` (halcyon): kernel, module, `broadcom-wl` and `halcyon-setup`
+  packages built; dinit services use `type = scripted`.
+- `halcyon-setup` (main): Options checkboxes plus the finished page
+  **Eject and restart** button (`c46ccfb`).
+- `halcyon-installer` (master): `linux-halcyon` live image with
+  `firmware-apple`, `t2fanrd`, `tiny-dfr`; SDE manuals decompressed; NVIDIA
+  firmware kept out of the initrd.
+- Release `0.1.12` / `halcyon-linux-x86_64-LIVE-20261111-sde-r19.iso`
+  (2,116,790,272 bytes,
+  sha256 `43e038dcbbe018e3ef49c6444593a40b419c7e572f53b720ccbbc480b31addac`)
+  is published from the `halcyon-installer` repository.
 
-The first ISO (`halcyon-linux-x86_64-LIVE-20261110-sde.iso`) was built and
-verified: `linux-halcyon`, both module packages, `firmware-apple`, `t2fanrd`,
-`tiny-dfr`, `wifi-select`, the init-top script and the dinit service are all
-present, and the initrd contains `wl.ko`, `brcmfmac.ko`, `brcmutil.ko`,
-`000-halcyon-wifi` and `wifi-select`.
-
-Booting that ISO in QEMU found dinit bugs: `type = oneshot` is not valid and
-aborted the boot.
-
-- `halcyon-core/broadcom-wl/files/halcyon-wifi` is now `type = scripted`
-  (pkgrel 2, cports `6cb17362c`).
-- `halcyon-core/linux-halcyon/files/zram` was the next one; also fixed to
-  `type = scripted` (pkgrel 1, cports `be67ea564`). This requires a full kernel
-  package rebuild, which is running now:
-  `./cbuild -b bldroot-halcyon -D -j8 pkg halcyon-core/linux-halcyon`
-  Log: `/home/jmalcolm/Projects/halcyon/kernel-build2.log`
+Verified: the ISO boots to SDDM with no dinit errors; the rootfs and initrd
+contain both Wi-Fi drivers, the selector, the init-top script, the dinit
+service and all T2 packages. Real T2 hardware was not available; the Wi-Fi
+selection logic was unit-tested with a fake sysfs tree.
 
 ## Gotchas found while building
 
@@ -83,40 +76,10 @@ aborted the boot.
   `early-fs-local.target` service dependency.
 - `linux-halcyon-bcachefs-bin` must not install a license; the ckms source tree
   has no `COPYING`.
-- cbuild gzips everything under `/usr/share/man`; `mklive.sh` now decompresses
+- dinit does not accept `type = oneshot`; use `type = scripted`.
+- cbuild gzips everything under `/usr/share/man`; `mklive.sh` decompresses
   `*.md.gz` so Serenity Help can read the manuals.
-
-## Next commands
-
-1. Rebuild the ISO after the dinit fix:
-
-```
-cd /home/jmalcolm/Projects/halcyon
-./build-halcyon-iso.sh
-```
-
-The stale `build-halcyon` directory is root-owned; remove it first with:
-
-```
-docker run --rm -v /home/jmalcolm/Projects/halcyon:/h alpine \
-    sh -c 'rm -rf /h/build-halcyon'
-```
-
-2. Boot the new ISO in QEMU and confirm the desktop starts and
-   `/var/log/halcyon-wifi.log` shows a non-T2 selection (this machine has no
-   T2, so it should blacklist `brcmfmac` and load `wl`, or skip both if the
-   hardware is absent).
-
-3. Publish the next ISO release and update `SDE-BUILD-STATE.md`.
-
-## Notes
-
-- T2 detection was unit-tested with a fake sysfs tree:
-  - T2 initramfs config blacklists `wl` and defers `brcmfmac`.
-  - T2 apply config removes the `brcmfmac` blacklist and runs
-    `modprobe -r wl`, `modprobe brcmfmac`, `modprobe brcmfmac_wcc`.
-  - Non-T2 config blacklists `brcmfmac` and runs `modprobe -r brcmfmac`,
-    `modprobe wl`.
-- `firmware-apple` contains the BCM4377b (`brcmfmac4377b3-pcie...`) firmware.
-- The user's `tiny-dlr` is the cports package `tiny-dfr` (Touch Bar daemon).
-  `t2fand` is the cports package `t2fanrd`.
+- The stale `build-halcyon` directory is root-owned; remove it with
+  `docker run --rm -v /home/jmalcolm/Projects/halcyon:/h alpine sh -c 'rm -rf /h/build-halcyon'`.
+- GitHub rejects release assets of 2 GiB or more. The NVIDIA firmware
+  (~100 MiB) is excluded from the initrd to stay under the limit.
