@@ -64,10 +64,16 @@ verified: `linux-halcyon`, both module packages, `firmware-apple`, `t2fanrd`,
 present, and the initrd contains `wl.ko`, `brcmfmac.ko`, `brcmutil.ko`,
 `000-halcyon-wifi` and `wifi-select`.
 
-Booting that ISO in QEMU found a dinit bug: `type = oneshot` is not valid and
-aborted the boot. It is fixed to `type = scripted` in
-`halcyon-core/broadcom-wl/files/halcyon-wifi` (pkgrel 2, cports `6cb17362c`).
-The ISO is being rebuilt with that fix.
+Booting that ISO in QEMU found dinit bugs: `type = oneshot` is not valid and
+aborted the boot.
+
+- `halcyon-core/broadcom-wl/files/halcyon-wifi` is now `type = scripted`
+  (pkgrel 2, cports `6cb17362c`).
+- `halcyon-core/linux-halcyon/files/zram` was the next one; also fixed to
+  `type = scripted` (pkgrel 1, cports `be67ea564`). This requires a full kernel
+  package rebuild, which is running now:
+  `./cbuild -b bldroot-halcyon -D -j8 pkg halcyon-core/linux-halcyon`
+  Log: `/home/jmalcolm/Projects/halcyon/kernel-build2.log`
 
 ## Gotchas found while building
 
