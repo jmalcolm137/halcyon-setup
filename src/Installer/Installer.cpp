@@ -926,14 +926,31 @@ private:
 
         auto chimera = "v3 https://repo.chimera-linux.org/current/main\n"
                        "v3 https://repo.chimera-linux.org/current/user\n"sv;
-        auto halcyon = "v3 https://repo.halcyon-linux.org/halcyon-core\n"
-                       "v3 https://repo.halcyon-linux.org/halcyon-extra\n"sv;
 
-        if (!write_file(ByteString::formatted("{}/00-chimera.list", dir), chimera) ||
-            !write_file(ByteString::formatted("{}/20-halcyon.list", dir), halcyon)) {
+        if (!write_file(ByteString::formatted("{}/00-chimera.list", dir), chimera)) {
             m_failed = true;
-            m_error = "Could not write the target package repositories."sv;
+            m_error = "Could not write the target Chimera repositories."sv;
             return false;
+        }
+
+        // The Halcyon repository configuration is package-managed. The live
+        // image carries both packages; installing them here also puts them in
+        // the target world so they survive upgrades.
+        if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
+                     "halcyon-repo-core"sv, "halcyon-repo-extra"sv },
+                "Installing Halcyon repository packages"sv, {}, 300))
+            return false;
+
+        // Remove the pre-package overlay file if coming from an older image.
+        unlink(ByteString::formatted("{}/20-halcyon.list", dir).characters());
+
+        for (auto const* name : { "20-halcyon-core.list", "21-halcyon-extra.list" }) {
+            auto path = ByteString::formatted("{}/{}", dir, name);
+            if (access(path.characters(), F_OK) != 0) {
+                m_failed = true;
+                m_error = ByteString::formatted("The target is missing the {} repository file.", name);
+                return false;
+            }
         }
 
         // apk needs a trusted key for the Halcyon repositories. The live
