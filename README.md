@@ -29,7 +29,9 @@ existing partition layout with mount points chosen by the user.
   handling appropriate for UEFI and legacy BIOS.
 - **Desktop choice**: install the Serenity Desktop Environment or leave a
   console-only system. `uutils-coreutils`, `bcachefs-tools`, `ckms` and the
-  bcachefs kernel module are installed regardless of the choice.
+  bcachefs/Broadcom CKMS sources are installed regardless of the choice. The
+  precompiled live-session modules are removed from the target; the modules
+  are built for the target kernel during initramfs creation.
 - **Root password** and an arbitrary number of normal user accounts, including
   the `wheel`, `kvm` and `plugdev` groups.
 - **Clickable world map** for the time zone. The map is equirectangular
@@ -37,8 +39,9 @@ existing partition layout with mount points chosen by the user.
   system time-zone database. A combo box is available for exact selection.
 - **Post-install configuration** from the handbook: hostname, `/etc/hosts`,
   time zone, hardware-clock mode, keyboard layout, fstab generation,
-  initramfs creation with the bcachefs module, `base-live` removal, optional
-  package updates, and enabling syslog-ng, NetworkManager and chrony.
+  initramfs creation with the CKMS-built bcachefs and Broadcom modules,
+  `/etc/shells` regeneration, `base-live` removal, optional package updates,
+  and enabling syslog-ng, NetworkManager and chrony.
 - **Apple T2 support:** the x86_64 image uses `linux-halcyon`, keeps the
   Apple T2 Wi-Fi firmware, and offers optional `t2fanrd` fan control and
   `tiny-dfr` Touch Bar support in the Options page.
@@ -133,9 +136,10 @@ Useful non-GUI commands:
 
 The backend performs the handbook's sequence: wipe and partition (whole-device
 mode), create filesystems, mount the target, `chimera-bootstrap -l`, ensure
-`uutils-coreutils`, `bcachefs-tools`, `ckms` and the bcachefs kernel module are
-installed, add or remove the SDE, configure the system through `chimera-chroot`,
-generate `/etc/fstab`, create users and passwords, enable services, run
+`uutils-coreutils`, `bcachefs-tools`, `ckms` and the bcachefs/Broadcom CKMS
+sources are installed, add or remove the SDE, configure the system through
+`chimera-chroot`, generate `/etc/fstab`, create users and passwords, enable
+services, regenerate `/etc/shells`, build the kernel modules with CKMS, run
 `update-initramfs -c -k all`, install the bootloader, and unmount everything
 even on failure.
 

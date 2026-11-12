@@ -383,6 +383,11 @@ public:
         if (m_failed)
             return finish();
 
+        if (!configure_repositories())
+            return finish();
+        if (m_failed)
+            return finish();
+
         if (!install_required_packages())
             return finish();
         if (m_failed)
@@ -399,6 +404,11 @@ public:
             return finish();
 
         if (!configure_system())
+            return finish();
+        if (m_failed)
+            return finish();
+
+        if (!regenerate_shells())
             return finish();
         if (m_failed)
             return finish();
@@ -903,13 +913,128 @@ private:
         return true;
     }
 
+    bool configure_repositories()
+    {
+        advance(53, "Configuring the package repositories"sv);
+
+        auto dir = ByteString::formatted("{}/etc/apk/repositories.d", m_target);
+        if (!make_path(dir)) {
+            m_failed = true;
+            m_error = "Could not create the target apk repositories directory."sv;
+            return false;
+        }
+
+        auto chimera = "v3 https://repo.chimera-linux.org/current/main\n"
+                       "v3 https://repo.chimera-linux.org/current/user\n"sv;
+        auto halcyon = "v3 https://repo.halcyon-linux.org/halcyon-core\n"
+                       "v3 https://repo.halcyon-linux.org/halcyon-extra\n"sv;
+
+        if (!write_file(ByteString::formatted("{}/00-chimera.list", dir), chimera) ||
+            !write_file(ByteString::formatted("{}/20-halcyon.list", dir), halcyon)) {
+            m_failed = true;
+            m_error = "Could not write the target package repositories."sv;
+            return false;
+        }
+
+        // apk needs a trusted key for the Halcyon repositories. The live
+        // image installs the key and chimera-bootstrap -l copies it, but fail
+        // clearly here rather than leaving an unusable target.
+        auto keydir = ByteString::formatted("{}/etc/apk/keys", m_target);
+        bool found_key = false;
+        for (auto const& name : list_directory(keydir)) {
+            if (name.ends_with(".pub"sv)) {
+                found_key = true;
+                break;
+            }
+        }
+        if (!found_key) {
+            m_failed = true;
+            m_error = "The target has no apk signing keys; the live image is missing the Halcyon key."sv;
+            return false;
+        }
+
+        return true;
+    }
+
     bool install_required_packages()
     {
         advance(55, "Installing required system tools"sv);
-        return run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
-                       "uutils-coreutils"sv, "bcachefs-tools"sv, "ckms"sv, "git"sv,
-                       "linux-stable"sv, "linux-stable-bcachefs-bin"sv },
-            "Installing uutils, bcachefs tools, ckms, git, the kernel and the bcachefs module"sv, {}, 600);
+        auto arch = machine_architecture();
+        auto is_x86_64 = arch == "x86_64"sv || arch == "amd64"sv;
+
+        // The live image ships prebuilt modules for its own session. The
+        // installed target builds them from the CKMS sources so they match
+        // its kernel and are regenerated together with the initramfs.
+        run({ "chimera-chroot"sv, m_target, "apk"sv, "del"sv,
+                "linux-halcyon-bcachefs-bin"sv },
+            "Removing the precompiled bcachefs module"sv, {}, 300, true);
+        if (is_x86_64) {
+            run({ "chimera-chroot"sv, m_target, "apk"sv, "del"sv,
+                    "linux-halcyon-broadcom-wl-bin"sv },
+                "Removing the precompiled Broadcom module"sv, {}, 300, true);
+        }
+
+        // The live image may already have CKMS-built modules at the same
+        // paths. Removing the precompiled packages deleted those files, so
+        // drop the module state and let the initramfs step rebuild them.
+        run({ "chimera-chroot"sv, m_target, "rm"sv, "-rf"sv,
+                "/var/lib/ckms/bcachefs"sv, "/var/lib/ckms/broadcom-wl"sv },
+            "Resetting the CKMS module state"sv, {}, 60, true);
+
+        // The kernel and its headers come from the live image, which was
+        // built against the same package set. Check them rather than asking
+        // apk to resolve them from a repository that may not have been
+        // published yet.
+        if (is_x86_64) {
+            if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "info"sv, "-e"sv, "linux-halcyon"sv },
+                    "Checking the Halcyon kernel"sv, {}, 60))
+                return false;
+            if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "info"sv, "-e"sv, "linux-halcyon-devel"sv },
+                    "Checking the Halcyon kernel headers"sv, {}, 60))
+                return false;
+        } else {
+            if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "info"sv, "-e"sv, "linux-stable"sv },
+                    "Checking the kernel"sv, {}, 60))
+                return false;
+            if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "info"sv, "-e"sv, "linux-stable-devel"sv },
+                    "Checking the kernel headers"sv, {}, 60))
+                return false;
+        }
+
+        Vector<ByteString> packages = {
+            "uutils-coreutils"sv,
+            "bcachefs-tools"sv,
+            "ckms"sv,
+            "clang"sv,
+            "lld"sv,
+            "gmake"sv,
+            "rust"sv,
+            "rust-bindgen"sv,
+            "rust-src"sv,
+            "python"sv,
+            "kmod"sv,
+            "initramfs-tools"sv,
+            "git"sv,
+            "bcachefs-ckms"sv,
+            "base-shells"sv,
+        };
+        if (is_x86_64) {
+            packages.append(ByteString { "broadcom-wl" });
+            packages.append(ByteString { "broadcom-wl-ckms" });
+        }
+
+        Vector<ByteString> arguments = {
+            "chimera-chroot"sv,
+            m_target,
+            "apk"sv,
+            "add"sv,
+        };
+        for (auto const& package : packages)
+            arguments.append(package);
+
+        return run(move(arguments),
+            "Installing uutils, bcachefs tools, ckms, the kernel and kernel module sources"sv,
+            {}, 900);
     }
 
     bool copy_live_boot_files()
@@ -1239,11 +1364,42 @@ private:
         log("Restored setuid permissions"sv);
     }
 
+    bool regenerate_shells()
+    {
+        advance(73, "Regenerating /etc/shells"sv);
+
+        // The live overlay provides this helper. Older images may already
+        // have a valid /etc/shells, so a missing helper is only a warning;
+        // the check below is authoritative.
+        run({ "chimera-chroot"sv, m_target, "/usr/local/bin/halcyon-regenerate-shells"sv },
+            "Regenerating /etc/shells"sv, {}, 60, true);
+
+        if (!run({ "chimera-chroot"sv, m_target, "grep"sv, "-qx"sv, "/bin/sh"sv, "/etc/shells"sv },
+                "Checking /etc/shells"sv, {}, 30))
+            return false;
+
+        return true;
+    }
+
     bool create_initramfs()
     {
-        advance(74, "Creating the initial ramdisk"sv);
-        if (!run({ "chimera-chroot"sv, m_target, "update-initramfs"sv, "-c"sv, "-k"sv, "all"sv }, "Creating initramfs images"sv, {}, 900))
+        advance(74, "Building kernel modules and creating the initial ramdisk"sv);
+
+        // CKMS builds the modules for every installed kernel that has headers
+        // in /usr/lib/modules/<kern>/build. The helper defers initramfs
+        // regeneration, so update-initramfs below picks up the new modules.
+        if (!run({ "chimera-chroot"sv, m_target, "/usr/lib/kernel.d/10-ckms.sh"sv },
+                "Building the bcachefs and Broadcom modules with CKMS"sv, {}, 3600))
             return false;
+
+        if (!run({ "chimera-chroot"sv, m_target, "depmod"sv, "-a"sv },
+                "Updating module dependencies"sv, {}, 300))
+            return false;
+
+        if (!run({ "chimera-chroot"sv, m_target, "update-initramfs"sv, "-c"sv, "-k"sv, "all"sv },
+                "Creating initramfs images"sv, {}, 1200))
+            return false;
+
         advance(82, "Initial ramdisk created"sv);
         return true;
     }
