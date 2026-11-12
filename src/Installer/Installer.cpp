@@ -989,15 +989,9 @@ private:
             if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "info"sv, "-e"sv, "linux-halcyon"sv },
                     "Checking the Halcyon kernel"sv, {}, 60))
                 return false;
-            if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "info"sv, "-e"sv, "linux-halcyon-devel"sv },
-                    "Checking the Halcyon kernel headers"sv, {}, 60))
-                return false;
         } else {
             if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "info"sv, "-e"sv, "linux-stable"sv },
                     "Checking the kernel"sv, {}, 60))
-                return false;
-            if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "info"sv, "-e"sv, "linux-stable-devel"sv },
-                    "Checking the kernel headers"sv, {}, 60))
                 return false;
         }
 
@@ -1021,6 +1015,9 @@ private:
         if (is_x86_64) {
             packages.append(ByteString { "broadcom-wl" });
             packages.append(ByteString { "broadcom-wl-ckms" });
+            packages.append(ByteString { "linux-halcyon-devel" });
+        } else {
+            packages.append(ByteString { "linux-stable-devel" });
         }
 
         Vector<ByteString> arguments = {
