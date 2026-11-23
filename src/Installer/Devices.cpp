@@ -117,7 +117,7 @@ DeviceProbe probe_devices()
             continue;
 
         auto name = string_or(object, "name"sv);
-        if (name.starts_with("/dev/zram"sv))
+        if (name.starts_with("/dev/zram"sv) || name.starts_with("/dev/fd"sv) || name.starts_with("/dev/sr"sv))
             continue;
         if (type == "loop"sv && getenv("HALCYON_SETUP_SHOW_LOOP") == nullptr)
             continue;

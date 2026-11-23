@@ -72,6 +72,9 @@ private:
 
         auto& confirm_row = add_labeled_row(main, "Confirm:"sv, 92);
         m_confirm = confirm_row.add<GUI::PasswordBox>();
+        m_confirm->on_return_pressed = [this] {
+            accept();
+        };
 
         auto& groups_label = main.add<GUI::Label>("Groups:"_string);
         groups_label.set_text_alignment(Gfx::TextAlignment::CenterLeft);
@@ -108,6 +111,24 @@ private:
         auto username = m_username->text();
         if (username.is_empty()) {
             GUI::MessageBox::show(this, "Enter a user name."sv, "Add User Account"sv, GUI::MessageBox::Type::Warning);
+            return;
+        }
+        auto valid_username = [](StringView name) {
+            if (name.is_empty() || name.length() > 32)
+                return false;
+            auto first = name[0];
+            if (!((first >= 'a' && first <= 'z') || first == '_'))
+                return false;
+            for (auto ch : name) {
+                if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-')
+                    continue;
+                return false;
+            }
+            return true;
+        };
+        if (!valid_username(username)) {
+            GUI::MessageBox::show(this, "User name must start with a lowercase letter or '_' and use only lowercase letters, digits, '_' or '-'."sv,
+                "Add User Account"sv, GUI::MessageBox::Type::Warning);
             return;
         }
         if (m_password->text() != m_confirm->text()) {
@@ -219,6 +240,16 @@ private:
         auto& label_row = add_labeled_row(main, "Label:"sv, 90);
         m_label = label_row.add<GUI::TextBox>();
         m_label->set_text(assignment.label);
+        m_label->on_return_pressed = [this] {
+            m_result.fs_type = m_fs->text();
+            m_result.label = m_label->text();
+            m_result.format = true;
+            if (m_result.mountpoint == "/"sv && m_result.fs_type == "swap"sv) {
+                GUI::MessageBox::show(this, "The root filesystem cannot be swap."sv, "Format Partition"sv, GUI::MessageBox::Type::Warning);
+                return;
+            }
+            done(GUI::Dialog::ExecResult::OK);
+        };
 
         main.add_spacer();
 

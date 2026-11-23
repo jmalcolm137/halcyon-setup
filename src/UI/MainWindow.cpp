@@ -192,10 +192,10 @@ ErrorOr<void> MainWindow::build_ui()
     root.set_fill_with_background_color(true);
     root.set_layout<GUI::VerticalBoxLayout>(GUI::Margins {}, 0);
 
-    auto& header = root.add<WizardHeader>();
+    m_header = root.add<WizardHeader>();
     if (window_icon)
-        header.set_icon(RefPtr<Gfx::Bitmap const> { window_icon });
-    header.set_subtitle("Setup is preparing your computer for Halcyon Linux."sv);
+        m_header->set_icon(RefPtr<Gfx::Bitmap const> { window_icon });
+    m_header->set_subtitle("Setup is preparing your computer for Halcyon Linux."sv);
 
     auto& body = root.add<GUI::Widget>();
     body.set_layout<GUI::HorizontalBoxLayout>(GUI::Margins {}, 0);
@@ -449,6 +449,10 @@ void MainWindow::build_mounts_page()
     m_mount_table->set_selection_behavior(GUI::AbstractView::SelectionBehavior::SelectRows);
     m_mount_table->on_selection_change = [this] {
         update_buttons();
+    };
+    m_mount_table->on_activation = [this](GUI::ModelIndex const&) {
+        if (m_custom_layout_radio && m_custom_layout_radio->is_checked())
+            set_selected_mountpoint();
     };
 
     auto& buttons = page.add<GUI::Widget>();
@@ -708,9 +712,9 @@ void MainWindow::build_accounts_page()
     add.on_click = [this](unsigned) {
         add_user();
     };
-    auto& remove = user_buttons.add<GUI::Button>("Remove"_string);
-    remove.set_fixed_width(88);
-    remove.on_click = [this](unsigned) {
+    m_remove_user_button = user_buttons.add<GUI::Button>("Remove"_string);
+    m_remove_user_button->set_fixed_width(88);
+    m_remove_user_button->on_click = [this](unsigned) {
         remove_user();
     };
     user_buttons.add_spacer();
@@ -721,8 +725,6 @@ void MainWindow::build_accounts_page()
     m_user_hint->set_text_alignment(Gfx::TextAlignment::CenterLeft);
     m_user_hint->set_foreground_role(Gfx::ColorRole::DisabledText);
     m_user_hint->set_fixed_height(34);
-
-    page.add_spacer();
 }
 
 void MainWindow::build_desktop_page()
@@ -829,8 +831,6 @@ void MainWindow::build_summary_page()
 
     m_final_confirm = page.add<GUI::CheckBox>("I have reviewed the summary and want to install Halcyon Linux."_string);
     m_final_confirm->set_checked(false);
-
-    page.add_spacer();
 }
 
 void MainWindow::build_progress_page()
@@ -1005,8 +1005,9 @@ void MainWindow::update_disk_preview()
         return;
     }
 
-    m_device_summary->set_text(MUST(String::formatted("{}  -  {}\n{} partitions, {}", disk->path, size_string(disk->size_bytes),
-        disk->partitions.size(), disk->table_type.is_empty() ? ByteString { "no partition table" } : disk->table_type)));
+    auto partition_word = disk->partitions.size() == 1 ? "partition"sv : "partitions"sv;
+    m_device_summary->set_text(MUST(String::formatted("{}  -  {}\n{} {}, {}", disk->path, size_string(disk->size_bytes),
+        disk->partitions.size(), partition_word, disk->table_type.is_empty() ? ByteString { "no partition table" } : disk->table_type)));
     m_firmware_label->set_text(to_string(m_uefi
             ? "Firmware: UEFI (the installer creates a 2 GiB FAT32 EFI system partition)"sv
             : "Firmware: legacy BIOS (a small BIOS boot partition will be created)"sv));
@@ -1180,9 +1181,9 @@ void MainWindow::update_summary()
     for (auto const& mount : config.mounts) {
         if (mount.mountpoint.is_empty())
             continue;
-        builder.appendff("  {}  {}  {}  {}{}\n", mount.partition, filesystem_display_name(mount.fs_type),
+        builder.appendff("  {}  {}  {}{}{}\n", mount.partition, filesystem_display_name(mount.fs_type),
             mount.mountpoint == "swap"sv ? ByteString { "swap" } : mount.mountpoint, mount.format ? " (format)"sv : ""sv,
-            mount.label.is_empty() ? ByteString {} : mount.label);
+            mount.label.is_empty() ? ByteString {} : ByteString::formatted(" [{}]", mount.label));
     }
 
     builder.appendff("\nHostname: {}\n", config.hostname);
@@ -1379,8 +1380,8 @@ void MainWindow::set_page(Step step)
         m_stack->set_active_widget(m_pages[static_cast<int>(step)]);
     if (m_sidebar) {
         int sidebar_step = static_cast<int>(step);
-        if (step == Step::Finished)
-            sidebar_step = static_cast<int>(Step::Summary);
+        if (step == Step::Finished && !m_finished_success)
+            sidebar_step = static_cast<int>(Step::Progress);
         m_sidebar->set_current(sidebar_step);
     }
 
@@ -1398,46 +1399,65 @@ void MainWindow::set_page(Step step)
         update_summary();
 
     ByteString hint;
+    ByteString header_subtitle;
     switch (step) {
     case Step::Welcome:
         hint = "Select Next to begin."sv;
+        header_subtitle = "Setup is preparing your computer for Halcyon Linux."sv;
         break;
     case Step::Disk:
         hint = "Choose the target disk and layout."sv;
+        header_subtitle = "Step 2 of 11 - Choose where to install Halcyon Linux."sv;
         break;
     case Step::Mounts:
         hint = "Assign a root filesystem and any other mount points."sv;
+        header_subtitle = "Step 3 of 11 - Review or assign partition mount points."sv;
         break;
     case Step::Bootloader:
         hint = "Choose how the computer will start Halcyon Linux."sv;
+        header_subtitle = "Step 4 of 11 - Choose a bootloader."sv;
         break;
     case Step::System:
         hint = "Set the computer name and keyboard layout."sv;
+        header_subtitle = "Step 5 of 11 - Configure computer name, keyboard and clock."sv;
         break;
     case Step::Timezone:
         hint = "Click the map or choose a time zone from the list."sv;
+        header_subtitle = "Step 6 of 11 - Choose your time zone."sv;
         break;
     case Step::Accounts:
         hint = "Set the root password and create user accounts."sv;
+        header_subtitle = "Step 7 of 11 - Set passwords and user accounts."sv;
         break;
     case Step::Desktop:
         hint = "Choose whether to install the Serenity Desktop Environment."sv;
+        header_subtitle = "Step 8 of 11 - Choose desktop environment options."sv;
         break;
     case Step::Options:
         hint = "Choose post-installation services and tasks."sv;
+        header_subtitle = "Step 9 of 11 - Choose post-installation options."sv;
         break;
     case Step::Summary:
         hint = "Review the summary, then press Install."sv;
+        header_subtitle = "Step 10 of 11 - Review your choices before installing."sv;
         break;
     case Step::Progress:
         hint = "Installation is in progress. Do not remove the installation media."sv;
+        header_subtitle = "Step 11 of 11 - Installing Halcyon Linux..."sv;
         break;
     case Step::Finished:
-        hint = "Press \"Eject and restart\" to boot into the new system."sv;
+        hint = m_finished_success
+            ? "Press \"Eject and restart\" or Finish to exit."sv
+            : "Press Finish to close setup."sv;
+        header_subtitle = m_finished_success
+            ? "Setup has finished installing Halcyon Linux."sv
+            : "Setup did not complete."sv;
         break;
     case Step::__Count:
         break;
     }
+    if (m_header && !header_subtitle.is_empty())
+        m_header->set_subtitle(header_subtitle);
     m_footer_hint->set_text(to_string(hint));
     update_buttons();
 }
@@ -1449,8 +1469,8 @@ void MainWindow::update_buttons()
     bool on_finished = m_step == Step::Finished;
 
     m_back_button->set_enabled(!on_welcome && !on_progress && !on_finished);
-    m_next_button->set_enabled(!on_progress && !on_finished);
-    m_cancel_button->set_enabled(!on_progress && !on_finished);
+    m_next_button->set_enabled(!on_progress);
+    m_cancel_button->set_enabled(!on_finished && (!on_progress || m_installing));
 
     if (m_step == Step::Summary)
         m_next_button->set_text("Install"_string);
@@ -1466,13 +1486,15 @@ void MainWindow::update_buttons()
     if (m_format_button)
         m_format_button->set_enabled(custom && has_partition);
     if (m_mount_editor_button)
-        m_mount_editor_button->set_enabled(selected_disk() != nullptr);
+        m_mount_editor_button->set_enabled(selected_disk() != nullptr && !m_editor_pid.has_value());
     if (m_mount_refresh_button)
         m_mount_refresh_button->set_enabled(true);
     if (m_partition_editor_button)
-        m_partition_editor_button->set_enabled(selected_disk() != nullptr);
+        m_partition_editor_button->set_enabled(selected_disk() != nullptr && !m_editor_pid.has_value());
     if (m_refresh_devices_button)
         m_refresh_devices_button->set_enabled(true);
+    if (m_remove_user_button)
+        m_remove_user_button->set_enabled(selected_user_row() >= 0);
 }
 
 void MainWindow::set_selected_mountpoint()
@@ -1565,7 +1587,7 @@ void MainWindow::launch_partition_editor()
     if (program.is_empty())
         program = resolve_command("sparted"sv);
     if (program.is_empty()) {
-        show_warning(*m_window, "Partition Editor was not found. Install the sparted package."sv);
+        show_warning(*m_window, "Partition Editor was not found. Install the partition-editor package."sv);
         return;
     }
 

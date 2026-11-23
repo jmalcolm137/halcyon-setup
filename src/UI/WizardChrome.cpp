@@ -51,8 +51,9 @@ void WizardHeader::paint_event(GUI::PaintEvent& event)
             *subtitle_font, Gfx::TextAlignment::CenterLeft, Gfx::Color::from_rgb(0x404040));
     }
 
-    painter.fill_rect(Gfx::IntRect { 0, height() - 4, width(), 4 }, Gfx::Color::from_rgb(0x000080));
-    painter.fill_rect(Gfx::IntRect { 0, height() - 1, width(), 1 }, Gfx::Color::from_rgb(0x808080));
+    painter.fill_rect(Gfx::IntRect { 0, height() - 4, width(), 2 }, Gfx::Color::from_rgb(0x000080));
+    painter.draw_line({ 0, height() - 2 }, { width(), height() - 2 }, palette().color(Gfx::ColorRole::ThreedShadow1));
+    painter.draw_line({ 0, height() - 1 }, { width(), height() - 1 }, palette().color(Gfx::ColorRole::ThreedHighlight));
 }
 
 WizardSidebar::WizardSidebar()
@@ -76,8 +77,9 @@ void WizardSidebar::paint_event(GUI::PaintEvent& event)
 {
     GUI::Painter painter(*this);
     painter.add_clip_rect(event.rect());
-    painter.fill_rect(rect(), Gfx::Color::from_rgb(0x000080));
-    painter.fill_rect(Gfx::IntRect { width() - 3, 0, 3, height() }, Gfx::Color::from_rgb(0x808080));
+    painter.fill_rect_with_gradient(Gfx::Orientation::Vertical, rect(), Gfx::Color::from_rgb(0x000080), Gfx::Color::from_rgb(0x000038));
+    painter.draw_line({ width() - 2, 0 }, { width() - 2, height() }, palette().color(Gfx::ColorRole::ThreedShadow1));
+    painter.draw_line({ width() - 1, 0 }, { width() - 1, height() }, palette().color(Gfx::ColorRole::ThreedHighlight));
 
     // A little Windows 95-era beveled product mark.
     Gfx::IntRect mark { 14, 12, 46, 46 };
@@ -142,8 +144,8 @@ void WizardFooter::paint_event(GUI::PaintEvent& event)
     GUI::Painter painter(*this);
     painter.add_clip_rect(event.rect());
     painter.fill_rect(rect(), palette().color(Gfx::ColorRole::Window));
-    painter.draw_line({ 0, 0 }, { width(), 0 }, palette().color(Gfx::ColorRole::ThreedHighlight));
-    painter.draw_line({ 0, 1 }, { width(), 1 }, palette().color(Gfx::ColorRole::ThreedShadow1));
+    painter.draw_line({ 0, 0 }, { width(), 0 }, palette().color(Gfx::ColorRole::ThreedShadow1));
+    painter.draw_line({ 0, 1 }, { width(), 1 }, palette().color(Gfx::ColorRole::ThreedHighlight));
 }
 
 }

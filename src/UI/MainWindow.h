@@ -102,6 +102,7 @@ private:
     RefPtr<GUI::Window> m_window;
     GUI::Icon m_app_icon;
     RefPtr<GUI::StackWidget> m_stack;
+    RefPtr<class WizardHeader> m_header;
     RefPtr<class WizardSidebar> m_sidebar;
     RefPtr<GUI::Button> m_back_button;
     RefPtr<GUI::Button> m_next_button;
@@ -157,6 +158,7 @@ private:
     RefPtr<GUI::PasswordBox> m_root_confirm;
     RefPtr<UserTableModel> m_user_model;
     RefPtr<GUI::TableView> m_user_table;
+    RefPtr<GUI::Button> m_remove_user_button;
     RefPtr<GUI::Label> m_user_hint;
     Vector<UserAccount> m_users;
 
