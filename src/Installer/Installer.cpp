@@ -933,9 +933,33 @@ private:
             return false;
         }
 
-        // The Halcyon repository configuration is package-managed. The live
-        // image carries both packages; installing them here also puts them in
-        // the target world so they survive upgrades.
+        // The Halcyon repository configuration is package-managed, but a
+        // live copy or an interrupted transaction can leave the lists
+        // missing, and apk add does not restore files of an already
+        // installed package. Write them first so apk can reach the
+        // repository and the files are present either way.
+        struct {
+            char const* name;
+            StringView contents;
+        } const halcyon_repos[] = {
+            { "20-halcyon-core.list",
+              "v3 https://repo.halcyon-linux.org/halcyon-core\n"sv },
+            { "21-halcyon-extra.list",
+              "v3 https://repo.halcyon-linux.org/halcyon-extra\n"sv },
+        };
+        for (auto const& repo : halcyon_repos) {
+            auto path = ByteString::formatted("{}/{}", dir, repo.name);
+            if (access(path.characters(), F_OK) != 0
+                && !write_file(path, repo.contents)) {
+                m_failed = true;
+                m_error = ByteString::formatted(
+                    "Could not write the {} repository file.", repo.name);
+                return false;
+            }
+        }
+
+        // The packages also put themselves in the target world so they
+        // survive upgrades.
         if (!run({ "chimera-chroot"sv, m_target, "apk"sv, "add"sv,
                      "halcyon-repo-core"sv, "halcyon-repo-extra"sv },
                 "Installing Halcyon repository packages"sv, {}, 300))
