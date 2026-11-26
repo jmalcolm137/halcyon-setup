@@ -455,6 +455,8 @@ void MainWindow::build_mounts_page()
     m_mount_table->set_column_width(MountTableModel::Label, 92);
     m_mount_table->set_column_width(MountTableModel::MountPoint, 112);
     m_mount_table->set_column_width(MountTableModel::Format, 50);
+    // Keep the buttons below the table from moving when the model populates.
+    m_mount_table->set_fixed_height(300);
     m_mount_table->set_selection_behavior(GUI::AbstractView::SelectionBehavior::SelectRows);
     m_mount_table->on_selection_change = [this] {
         update_buttons();
@@ -709,6 +711,9 @@ void MainWindow::build_accounts_page()
     m_user_table->set_column_width(UserTableModel::FullName, 200);
     m_user_table->set_column_width(UserTableModel::Groups, 220);
     m_user_table->set_selection_behavior(GUI::AbstractView::SelectionBehavior::SelectRows);
+    // The layout must not move the buttons below the table after the model is
+    // populated; the widgets' hit areas then no longer match where they are
+    // painted.
     m_user_table->set_fixed_height(200);
     m_user_table->on_selection_change = [this] {
         update_buttons();
@@ -718,7 +723,6 @@ void MainWindow::build_accounts_page()
     user_buttons.set_layout<GUI::HorizontalBoxLayout>(GUI::Margins {}, 8);
     user_buttons.set_fixed_height(34);
     auto& add = user_buttons.add<GUI::Button>("Add User..."_string);
-    m_add_user_button = &add;
     add.set_fixed_width(104);
     add.on_click = [this](unsigned) {
         add_user();
@@ -1402,13 +1406,6 @@ void MainWindow::set_page(Step step)
     if (step == Step::Disk && m_disks.is_empty())
         refresh_devices();
 
-    if (step == Step::Accounts && m_add_user_button) {
-        auto* parent = m_add_user_button->parent_widget();
-        dbgln("accounts: page={} button={} parent={} screen={} window={}",
-            m_pages[static_cast<int>(step)]->rect(), m_add_user_button->rect(),
-            parent ? parent->rect() : Gfx::IntRect {},
-            m_add_user_button->screen_relative_rect(), m_window->rect());
-    }
     if (step == Step::Mounts)
         update_mount_table();
     if (step == Step::Timezone)
