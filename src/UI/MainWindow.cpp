@@ -14,6 +14,7 @@
 #include <AK/NumberFormat.h>
 #include <AK/StringBuilder.h>
 #include <LibCore/Process.h>
+#include <LibCore/Timer.h>
 #include <LibGUI/Application.h>
 #include <LibGUI/BoxLayout.h>
 #include <LibGUI/Button.h>
@@ -72,7 +73,15 @@ static bool hostname_is_valid(StringView hostname)
 
 static void show_warning(GUI::Window& window, StringView text, StringView title = "Halcyon Linux Setup"sv)
 {
-    GUI::MessageBox::show(&window, text, title, GUI::MessageBox::Type::Warning);
+    auto box = MUST(GUI::MessageBox::create(&window, text, title, GUI::MessageBox::Type::Warning));
+    if (window.icon())
+        box->set_icon(window.icon());
+    // The compositor does not reliably keep a new dialog above its parent;
+    // raise it once it has been shown.
+    auto raise_timer = Core::Timer::create_single_shot(0, [box] {
+        box->set_always_on_top(true);
+    });
+    box->exec();
 }
 
 static ByteString keyboard_description(ByteString const& layout)

@@ -17,6 +17,7 @@
 #include <LibGUI/MessageBox.h>
 #include <LibGUI/TextBox.h>
 #include <LibGUI/Widget.h>
+#include <LibCore/Timer.h>
 #include <LibGfx/SystemTheme.h>
 
 namespace Halcyon {
@@ -168,6 +169,11 @@ private:
 Optional<UserAccount> show_add_user_dialog(GUI::Window& parent)
 {
     auto dialog = UserDialog::construct(parent);
+    // The compositor does not reliably keep a new dialog above its parent;
+    // raise it once it has been shown.
+    auto raise_timer = Core::Timer::create_single_shot(0, [dialog] {
+        dialog->set_always_on_top(true);
+    });
     if (dialog->exec() != GUI::Dialog::ExecResult::OK)
         return {};
     return dialog->account();
