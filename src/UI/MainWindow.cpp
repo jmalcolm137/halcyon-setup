@@ -709,6 +709,7 @@ void MainWindow::build_accounts_page()
     m_user_table->set_column_width(UserTableModel::FullName, 200);
     m_user_table->set_column_width(UserTableModel::Groups, 220);
     m_user_table->set_selection_behavior(GUI::AbstractView::SelectionBehavior::SelectRows);
+    m_user_table->set_fixed_height(200);
     m_user_table->on_selection_change = [this] {
         update_buttons();
     };
