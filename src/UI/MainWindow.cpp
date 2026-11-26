@@ -717,6 +717,7 @@ void MainWindow::build_accounts_page()
     user_buttons.set_layout<GUI::HorizontalBoxLayout>(GUI::Margins {}, 8);
     user_buttons.set_fixed_height(34);
     auto& add = user_buttons.add<GUI::Button>("Add User..."_string);
+    m_add_user_button = &add;
     add.set_fixed_width(104);
     add.on_click = [this](unsigned) {
         add_user();
@@ -1400,6 +1401,13 @@ void MainWindow::set_page(Step step)
     if (step == Step::Disk && m_disks.is_empty())
         refresh_devices();
 
+    if (step == Step::Accounts && m_add_user_button) {
+        auto* parent = m_add_user_button->parent_widget();
+        dbgln("accounts: page={} button={} parent={} screen={} window={}",
+            m_pages[static_cast<int>(step)]->rect(), m_add_user_button->rect(),
+            parent ? parent->rect() : Gfx::IntRect {},
+            m_add_user_button->screen_relative_rect(), m_window->rect());
+    }
     if (step == Step::Mounts)
         update_mount_table();
     if (step == Step::Timezone)

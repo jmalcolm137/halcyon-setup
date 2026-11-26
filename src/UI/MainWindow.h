@@ -158,6 +158,7 @@ private:
     RefPtr<GUI::PasswordBox> m_root_confirm;
     RefPtr<UserTableModel> m_user_model;
     RefPtr<GUI::TableView> m_user_table;
+    RefPtr<GUI::Button> m_add_user_button;
     RefPtr<GUI::Button> m_remove_user_button;
     RefPtr<GUI::Label> m_user_hint;
     Vector<UserAccount> m_users;
